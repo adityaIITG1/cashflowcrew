@@ -1,0 +1,5 @@
+help - Type questions about expenses, income, trends (e.g., 'total expense', 'top categories')
+overview - Show project overview and advantages
+trend groceries - Show spending trend for groceries
+plot - Explain the current plot and data
+streak - Show current and longest saving streak
