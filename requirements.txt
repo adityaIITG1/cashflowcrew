@@ -9,6 +9,7 @@ requests>=2.32.0
 numpy==1.26.4
 mediapipe>=0.10.7
 opencv-python
+streamlit-webrtc
 streamlit
 pandas
 numpy
@@ -16,5 +17,6 @@ mediapipe
 plotly
 requests
 Pillow
+
 
 
