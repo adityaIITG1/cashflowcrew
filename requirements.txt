@@ -1,5 +1,7 @@
 streamlit==1.36.0
-pandas==2.2.2
+pandas==2.1.4
+mediapipe==0.10.21
+streamlit-webrtc
 pyarrow==15.0.2
 plotly==5.24.1
 pmdarima==2.0.4
@@ -7,16 +9,9 @@ prophet==1.1.5
 scikit-learn==1.5.2
 requests>=2.32.0
 numpy==1.26.4
-mediapipe>=0.10.7
 opencv-python
-streamlit-webrtc
-streamlit
-pandas
-numpy
-mediapipe
-plotly
-requests
 Pillow
+
 
 
 
