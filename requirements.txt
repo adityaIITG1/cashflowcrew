@@ -7,3 +7,11 @@ prophet==1.1.5
 scikit-learn==1.5.2
 requests>=2.32.0
 numpy==1.26.4
+opencv-python
+streamlit
+pandas
+numpy
+mediapipe
+plotly
+requests
+Pillow
