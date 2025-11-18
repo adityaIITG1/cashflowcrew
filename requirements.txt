@@ -7,11 +7,13 @@ plotly==5.24.1
 pmdarima==2.0.4
 prophet==1.1.5
 scikit-learn==1.5.2
-qrcode 
+qrcode
+google-genai
 requests>=2.32.0
 numpy==1.26.4
 opencv-python
 Pillow
+
 
 
 
