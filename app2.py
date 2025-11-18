@@ -91,6 +91,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer # noqa: F401
 from sklearn.metrics.pairwise import cosine_similarity        # noqa: F401
 import qrcode
 
+st.set_page_config(page_title="Cash Flow Crew — Personal Finance AI Analyzer", page_icon="📈💰📊", layout="wide")
 # ============================================================
 # 🏙️ NEW: City Affordability (inlined module)
 # ============================================================
@@ -2030,7 +2031,6 @@ PROFILE64 = _img64(PROFILE_IMG)
 
 # ============================== App Initialization ==============================
 
-st.set_page_config(page_title="Cash Flow Crew — Personal Finance AI Analyzer", page_icon="📈💰📊", layout="wide")
 
 # === NEW: Keyboard shortcuts (E: Tools tab, B: backup, F: focus chat) ===
 components.html("""
@@ -3725,4 +3725,5 @@ if __name__ == "__main__":
         st.session_state["DB"].save()
     except Exception:
         pass 
+
     
