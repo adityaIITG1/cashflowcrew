@@ -2656,20 +2656,27 @@ with tab_dashboard:
             value=int(st.session_state["goal_current"]), 
             step=1000
         )
-
+    
     with goal_col2:
         st.session_state["goal_date"] = st.date_input(
             "Target Date", 
             value=st.session_state["goal_date"],
             min_value=date.today() + timedelta(days=1)
         )
+        
+    if isinstance(st.session_state["goal_date"], date):
+        # Proceed with subtraction only on valid date objects
         time_delta = st.session_state["goal_date"] - date.today()
-        days_to_go = max(1, time_delta.days if hasattr(time_delta, 'days') else 1)
-        
-        remaining_target = max(0, st.session_state["goal_target"] - st.session_state["goal_current"])
-        required_daily_saving = remaining_target / days_to_go
-        
-        st.metric("Days Remaining", f"{days_to_go} days")
+        # Use .days property, which is safe if time_delta is a timedelta
+        days_to_go = max(1, time_delta.days)
+    else:
+        # Fallback to 1 day if the date is invalid or uninitialized
+        days_to_go = 1
+
+
+    remaining_target = max(0, st.session_state["goal_target"] - st.session_state["goal_current"])
+    required_daily_saving = remaining_target / days_to_go
+    st.metric("Days Remaining", f"{days_to_go} days")
 
     with goal_col3:
         st.metric("Required Daily Saving", money(required_daily_saving))
@@ -3735,5 +3742,3 @@ if __name__ == "__main__":
         pass 
 
     
-
-
