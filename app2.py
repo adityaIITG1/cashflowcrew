@@ -2656,7 +2656,8 @@ with tab_dashboard:
             value=st.session_state["goal_date"],
             min_value=date.today() + timedelta(days=1)
         )
-        days_to_go = max(1, (st.session_state["goal_date"] - date.today()).days)
+        time_delta = st.session_state["goal_date"] - date.today()
+        days_to_go = max(1, time_delta.days if hasattr(time_delta, 'days') else 1)
         
         remaining_target = max(0, st.session_state["goal_target"] - st.session_state["goal_current"])
         required_daily_saving = remaining_target / days_to_go
@@ -3727,3 +3728,4 @@ if __name__ == "__main__":
         pass 
 
     
+
