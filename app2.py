@@ -1913,10 +1913,10 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     st.markdown("""
     <style>
     .fade-line { opacity: 0; background: rgba(255,255,255,0.07); border-left: 4px solid #00f5d4; margin: 6px 0;
-             padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
-             animation: fadeIn 1.3s ease-in-out forwards; }
+                 padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
+                 animation: fadeIn 1.3s ease-in-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); box-shadow: 0 0 5px #00f5d4; }
-                           to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
+                               to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
     .plan-title { color: #8e2de2; text-align: center; margin-bottom: 20px; }
     .speak-button { background:#8e2de2;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600; }
     </style>
@@ -1928,13 +1928,21 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     avg_income = _get_average_monthly_income(df)
     default_salary = 60000.0 if avg_income == 0.0 else round(avg_income)
 
-    salary = st.number_input(
+    # --- FIX 1: Initialize session state key only if it doesn't exist ---
+    if "ai_plan_salary" not in st.session_state:
+        st.session_state["ai_plan_salary"] = int(default_salary)
+    
+    # --- FIX 2: Use key to manage state and remove the conflicting 'value' parameter ---
+    st.number_input(
         "💰 Enter/Confirm your Monthly Income (₹):",
         min_value=5000,
-        value=int(default_salary),
+        # value=int(default_salary),  <--- REMOVED TO PREVENT StreamlitAPIException
         step=1000,
         key="ai_plan_salary"
     )
+    # Read the current salary from session state, regardless of source (default or user input)
+    salary = st.session_state["ai_plan_salary"] 
+
     goal = st.text_input(
         "🎯 Your Current Financial Goal (optional):",
         placeholder="e.g., Save for laptop, trip, or emergency fund",
@@ -1972,7 +1980,6 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
                 """,
                 unsafe_allow_html=True
             )
-
             st.subheader("📊 Proposed 50/25/20/5 Rule Distribution")
             try:
                 labels = ['🏠 Essentials (50%)', '💰 Savings (25%)', '📈 Investments (20%)', '🎉 Lifestyle (5%)']
@@ -3728,4 +3735,5 @@ if __name__ == "__main__":
         pass 
 
     
+
 
