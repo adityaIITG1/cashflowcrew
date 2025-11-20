@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import os
@@ -16,9 +15,10 @@ from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Sequence, Any, Tuple
 
 # === ML/CV/OCR IMPORTS ===
-import cv2
-import mediapipe as mp # noqa: F401
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
+# Removed unused ML/CV imports for clean login
+# import cv2
+# import mediapipe as mp # noqa: F401
+# from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode 
 
 # === NEW MODULE IMPORTS ===
 from analytics import (
@@ -88,7 +88,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from PIL import Image, ImageDraw
 from sklearn.feature_extraction.text import TfidfVectorizer # noqa: F401
-from sklearn.metrics.pairwise import cosine_similarity        # noqa: F401
+from sklearn.metrics.pairwise import cosine_similarity         # noqa: F401
 import qrcode
 
 st.set_page_config(page_title="Cash Flow Crew — Personal Finance AI Analyzer", page_icon="📈💰📊", layout="wide")
@@ -762,9 +762,8 @@ def generate_ca_financial_plan(life_stage: str, city: str, monthly_income: int, 
     if city_config["cost_level"] in ["VERY HIGH", "HIGH"] and monthly_income < 60000:
         bengaluru_info = "\n\n**Note:** The cost of living is **Very High** here. You must be extremely disciplined."
     
-    def money(x):
-        return f"₹{int(round(x)):,}"
-        
+    # NOTE: Using the imported 'money' function from ui_patches for consistency
+    
     explanation = f"""
 ## 🎯 Your Personalized Financial Blueprint by PRAKRITI AI 👩‍💻
 
@@ -1079,7 +1078,7 @@ def _inject_global_particles(enabled: bool = True) -> None:
         components.html(
             """
             <script>
-              try { const old = document.getElementById('cc-particles'); if (old) old.remove(); } catch(e){}
+            try { const old = document.getElementById('cc-particles'); if (old) old.remove(); } catch(e){}
             </script>
             """,
             height=0,
@@ -1318,41 +1317,6 @@ class MiniDB:
             return cls()
 
 
-# ============================== Face Detector Transformer ==============================
-
-class FaceDetectorTransformer(VideoTransformerBase):
-    """Detects a face using OpenCV Haar Cascade and overlays a simple status."""
-    def __init__(self):
-        haar_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        self.face_cascade = cv2.CascadeClassifier(haar_path)
-        self.face_detected_count = 0
-        self.current_face_vector = ""
-
-    def recv(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        img = cv2.flip(img, 1)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 5)
-        self.face_detected_count = len(faces)
-
-        if self.face_detected_count > 0:
-            (x, y, w, h) = faces[0]
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            cv2.putText(
-                img, "FACE DETECTED", (x, y - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA
-            )
-            self.current_face_vector = f"{x},{y},{w},{h},{datetime.now().hour}"
-        else:
-            self.current_face_vector = ""
-
-        status_text = f"Face(s) Found: {self.face_detected_count}"
-        color = (0, 255, 0) if self.face_detected_count > 0 else (0, 0, 255)
-        cv2.putText(img, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-
-        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-
 # ============================== API Keys and Configuration ==============================
 
 # FIX: USING LATEST VALID KEY AND ENSURING DEFINITIVE ASSIGNMENT.
@@ -1397,6 +1361,15 @@ TEAM_INFO = {
 }
 
 HAS_QR = True
+
+# --- REFACTORED USER DATABASE (Username: Password) ---
+VALID_USERS = {
+    "prakriti11": "pass123",
+    "ujjwal11": "secure456",
+    "aditya11": "admin",
+    "guest": "guest",
+}
+# -----------------------------------------------------
 
 # ============================== Utilities / FX / Sound ==============================
 
@@ -1514,11 +1487,11 @@ def show_coin_rain(seconds: float = 5.0) -> None:
     }}
 }}
 .coin-rain {{
-  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
 }}
 .coin-rain span {{
-  position:absolute; top:-50px; font-size:22px; filter:drop-shadow(0 6px 8px rgba(0,0,0,.35));
-  animation: rain 2.2s linear infinite, coin-pulse 2s ease-in-out infinite;
+    position:absolute; top:-50px; font-size:22px; filter:drop-shadow(0 6px 8px rgba(0,0,0,.35));
+    animation: rain 2.2s linear infinite, coin-pulse 2s ease-in-out infinite;
 }}
 @keyframes rain{{0%{{transform:translateY(-60px) rotate(0deg);opacity:0}}
 15%{{opacity:1}}100%{{transform:translateY(120vh) rotate(360deg);opacity:0}}}}
@@ -1913,10 +1886,10 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     st.markdown("""
     <style>
     .fade-line { opacity: 0; background: rgba(255,255,255,0.07); border-left: 4px solid #00f5d4; margin: 6px 0;
-                 padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
-                 animation: fadeIn 1.3s ease-in-out forwards; }
+                     padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
+                     animation: fadeIn 1.3s ease-in-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); box-shadow: 0 0 5px #00f5d4; }
-                               to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
+                                   to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
     .plan-title { color: #8e2de2; text-align: center; margin-bottom: 20px; }
     .speak-button { background:#8e2de2;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600; }
     </style>
@@ -1928,14 +1901,18 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     avg_income = _get_average_monthly_income(df)
     default_salary = 60000.0 if avg_income == 0.0 else round(avg_income)
 
-    # --- FIX 1: Initialize session state key only if it doesn't exist ---
+    # FIX 3: Ensure default salary meets min_value to prevent StreamlitAPIException
+    MIN_SALARY_ALLOWED = 5000.0
+    default_salary = max(MIN_SALARY_ALLOWED, default_salary)
+
+    # FIX: Initialize session state key only if it doesn't exist
     if "ai_plan_salary" not in st.session_state:
         st.session_state["ai_plan_salary"] = int(default_salary)
     
-    # --- FIX 2: Use key to manage state and remove the conflicting 'value' parameter ---
+    # Use key to manage state and remove the conflicting 'value' parameter
     st.number_input(
         "💰 Enter/Confirm your Monthly Income (₹):",
-        min_value=5000,
+        min_value=int(MIN_SALARY_ALLOWED),
         # value=int(default_salary),  <--- REMOVED TO PREVENT StreamlitAPIException
         step=1000,
         key="ai_plan_salary"
@@ -1950,8 +1927,8 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     )
 
     if st.button("🚀 Generate My AI Savings Strategy", use_container_width=True):
-        if salary < 5000:
-            st.error("Monthly income must be at least ₹5000 to generate a plan.")
+        if salary < MIN_SALARY_ALLOWED:
+            st.error(f"Monthly income must be at least ₹{int(MIN_SALARY_ALLOWED)} to generate a plan.")
             return
 
         with st.spinner("🤖 Gemini 2.5 is analyzing your profile and creating a strategy..."):
@@ -2067,6 +2044,60 @@ if "DB" not in st.session_state:
     st.session_state["DB"] = MiniDB.load()
 DB: MiniDB = st.session_state["DB"]
 
+# ============================== REFACTORED LOGIN LOGIC ==============================
+
+def _login_view() -> None:
+    """Renders the simple Username/Password login page."""
+    st.markdown(
+        """
+        <style>
+        .login-card-container {
+            max-width: 450px;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 10px 30px rgba(138, 43, 226, 0.2);
+            border: 1px solid #d4c1f5;
+        }
+        .login-header {
+            text-align: center;
+            color: #6a5acd;
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 20px;
+        }
+        .stButton button {
+            background-color: #6a5acd;
+            color: white;
+            border-radius: 8px;
+        }
+        </style>
+        <div class="login-card-container">
+            <div class="login-header">🔐 Cashflow Crew Login</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.form("login_form"):
+        username = st.text_input("Username (e.g., prakriti11, guest)", key="login_user")
+        password = st.text_input("Password (e.g., pass123)", type="password", key="login_pass")
+        submitted = st.form_submit_button("Login")
+
+        if submitted:
+            if username in VALID_USERS and VALID_USERS[username] == password:
+                st.session_state["auth_ok"] = True
+                st.session_state["auth_user"] = username
+                st.session_state["chat_history"] = []
+                st.success(f"🎉 Login successful! Welcome, **{username}**.")
+                st.rerun()
+            else:
+                st.error("❌ Invalid Username or Password. Try 'guest' / 'guest'.")
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+# ----------------------------------------------------------------------
+
+
 if "paid_orders_applied" not in st.session_state:
     st.session_state["paid_orders_applied"] = set()
 if "thinking" not in st.session_state:
@@ -2098,161 +2129,6 @@ if "ca_plan_tts_summary" not in st.session_state:
     st.session_state["ca_plan_tts_summary"] = None
 
 
-# ============================== Login & User Management (FACE DETECTOR) ==============================
-
-VALID_USERS = {
-    "prakriti11": "face_biometric_code_A",
-    "ujjwal11": "face_biometric_code_B",
-    "aditya11": "face_biometric_code_C",
-    "guest1": "face_biometric_code_D",
-    "guest2": "face_biometric_code_E",
-    "guest3": "face_biometric_code_F",
-    "guest4": "face_biometric_code_G",
-    "guest5": "face_biometric_code_H",
-    "guest6": "face_biometric_code_I",
-}
-
-def _get_all_users(db: MiniDB) -> set:
-    db_users = {t.user_id for t in db._tx.values()}
-    return set(VALID_USERS.keys()) | db_users
-
-if "ml_login_step" not in st.session_state:
-    st.session_state["ml_login_step"] = 1
-if "ml_face_code_live" not in st.session_state:
-    st.session_state["ml_face_code_live"] = ""
-
-def _login_view() -> None:
-    # UPDATED CSS FOR LOGIN VIEW
-    st.markdown(
-        """
-    <style>
-    /* Light Purple/Blue Background */
-    [data-testid="stAppViewContainer"] > .main {background-color: #f0f2f6; background: linear-gradient(145deg, #e4e7ff, #f0f2f6); color: #1e1e1e;}
-    .login-card-container { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-    .login-card-inner {
-        padding: 30px; border-radius: 16px;
-        background: #ffffff; /* White card */
-        border: 1px solid #d4c1f5;
-        box-shadow: 0 4px 15px rgba(106, 90, 205, 0.2), 0 0 10px rgba(138, 43, 226, 0.1);
-        transition: all 0.3s;
-        color: #1e1e1e;
-    }
-    .login-card-inner:hover { box-shadow: 0 6px 20px rgba(106, 90, 205, 0.3); }
-    .stSelectbox div { background-color: #f0f2f6 !important; color: #1e1e1e !important; }
-    .stSelectbox button { color: #6a5acd !important; }
-    .navbar {
-        position: sticky; top: 0; z-index: 1000; padding: 12px 18px; margin: 0 0 18px 0;
-        background: linear-gradient(90deg, #6a5acd 0%, #8a2be2 100%); /* Purple gradient */
-        box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
-        border: 1px solid rgba(255,255,255,0.35);
-        display: flex; justify-content: space-between; align-items: center;
-    }
-    .nav-title { font-weight: 800; font-size: 24px; color:#ffffff; letter-spacing: .5px; }
-    .nav-sub { color:#ddddff; font-size:13px; margin-top:-2px; }
-    .stSuccess { background-color: #e6f7e9 !important; border-left: 5px solid #22c55e !important; color: #1e1e1e !important; }
-    .stError { background-color: #f7e6e6 !important; border-left: 5px solid #ef4444 !important; color: #1e1e1e !important; }
-    </style>
-    <div class="navbar">
-      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
-        <div>
-          <div class="nav-title">🔐 Finance Analyzer — BIOMETRIC FACE LOGIN</div>
-          <div class="nav-sub">Face Detection for Simplified Biometric Authentication</div>
-        </div>
-      </div>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    all_users = sorted(list(_get_all_users(DB)))
-
-    st.subheader("Live Face Recognition")
-    st.warning("Grant camera access. Look directly at the camera to allow face detection and capture.")
-
-    ctx = webrtc_streamer(
-        key="ml_webcam_input",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-        video_processor_factory=FaceDetectorTransformer,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
-    )
-
-    if ctx.video_processor:
-        face_detected_count = ctx.video_processor.face_detected_count
-        current_face_vector = ctx.video_processor.current_face_vector
-    else:
-        face_detected_count = 0
-        current_face_vector = ""
-
-    st.markdown('<div class="login-card-container">', unsafe_allow_html=True)
-
-    # 1. EXISTING USER LOGIN
-    with st.container():
-        st.markdown('<div class="login-card-inner">', unsafe_allow_html=True)
-        st.subheader("Existing User Login (Face Scan)")
-
-        u_select = st.selectbox("Select Username", options=all_users, key="user_select")
-        target_code = VALID_USERS.get(u_select, "")
-
-        if face_detected_count > 0:
-            st.success("Face detected! Click 'Scan and Login'.")
-        else:
-            st.error("No face detected. Please look at the camera.")
-
-        if st.button("Scan and Login", use_container_width=True):
-            if face_detected_count == 0:
-                st.error("❌ **Detection Error:** No face detected to scan.")
-            elif face_detected_count > 1:
-                st.error("❌ **Detection Error:** Too many faces detected. Please ensure only one person is visible.")
-            elif not target_code:
-                st.error("❌ **Registration Error:** User not fully registered.")
-            else:
-                st.session_state["auth_ok"] = True
-                st.session_state["auth_user"] = u_select
-                st.session_state["chat_history"] = []
-                st.success(f"🎉 **Face Biometric Login Success!** Welcome, **{u_select}**.")
-                st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # 2. NEW USER REGISTRATION
-    with st.container():
-        st.markdown('<div class="login-card-inner">', unsafe_allow_html=True)
-        st.subheader("New User Registration (Enroll Face)")
-
-        u_new = st.text_input("New Username", key="user_new")
-
-        if u_new in VALID_USERS:
-            st.info(f"User **{u_new}** is already enrolled.")
-        elif face_detected_count > 0:
-            st.info("Face detected! Click 'Enroll Face' to save your biometric data.")
-        else:
-            st.error("Enrollment requires a face detected in the camera.")
-
-        if st.button("Enroll Face & Create User", key="enroll_button", use_container_width=True):
-            new_user_id = u_new.strip()
-            if not new_user_id:
-                st.error("New Username cannot be empty.")
-            elif new_user_id in _get_all_users(DB):
-                st.error(f"User **{new_user_id}** already exists.")
-            elif face_detected_count == 0:
-                st.error("❌ **Enrollment Error:** No face detected to enroll.")
-            else:
-                VALID_USERS[new_user_id] = f"face_biometric_code_{new_user_id}"
-                st.session_state["auth_ok"] = True
-                st.session_state["auth_user"] = new_user_id
-                st.session_state["chat_history"] = []
-                st.success(f"🎉 **New Face Biometric User Registered!** Welcome, **{new_user_id}**.")
-                st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)  # End login-card-container
-    st.markdown("---")
-    st.caption(f"Current Biometric Code (Face Position): {current_face_vector or 'N/A'}")
-
-
 if "auth_ok" not in st.session_state:
     st.session_state["auth_ok"] = False
     st.session_state["auth_user"] = None
@@ -2271,40 +2147,40 @@ st.markdown(
 <style>
 /* Reset basic page styles for the wide view */
 html, body, [data-testid="stAppViewContainer"] {
-  background: #f0f2f6;
-  background: linear-gradient(145deg, #e4e7ff, #f0f2f6);
-  color: #1e1e1e;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background: #f0f2f6;
+  background: linear-gradient(145deg, #e4e7ff, #f0f2f6);
+  color: #1e1e1e;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
 /* 🚀 AGGRESSIVE FULL-WIDTH AND CENTER ALIGNMENT FIXES */
 [data-testid="stAppViewContainer"] > .main {
-    padding: 0px !important;
-    margin: 0 auto !important;
+    padding: 0px !important;
+    margin: 0 auto !important;
 }
 .main > div {
-    max-width: 100% !important; 
-    margin: 0 auto !important;
-    padding: 1rem 1rem !important; 
+    max-width: 100% !important; 
+    margin: 0 auto !important;
+    padding: 1rem 1rem !important; 
 }
 [data-testid="stBlockContainer"], .block-container {
-    max-width: 100% !important;
-    padding: 0 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
 }
 [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"] {
-    max-width: 100% !important;
-    padding: 0 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
 }
 [data-testid="stBlock"] {
-    max-width: 100% !important;
-    padding: 0 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
 }
 div.block-container {
-    max-width: 100% !important;
-    padding: 0 1rem 1rem !important;
+    max-width: 100% !important;
+    padding: 0 1rem 1rem !important;
 }
 [data-testid="column"] {
-    padding: 0 5px !important; 
+    padding: 0 5px !important; 
 }
 /* END AGGRESSIVE FIXES */
 
@@ -2313,54 +2189,54 @@ div.block-container {
 
 /* B1: ENLARGE TABS: Increase size, padding, and add a subtle box shadow */
 [data-testid="stTabs"] button[role="tab"] {
-    font-size: 16px !important; /* Enlarge text */
-    padding: 12px 18px 12px 18px !important; /* Increase padding around text */
-    min-height: 45px !important; /* Ensure minimum height */
-    box-shadow: 0 2px 5px rgba(106, 90, 205, 0.1); /* Subtle shadow lift */
-    transition: all 0.2s ease-in-out; /* Smooth transition for hover effect */
-    font-weight: 700 !important; /* Make the text bolder */
+    font-size: 16px !important; /* Enlarge text */
+    padding: 12px 18px 12px 18px !important; /* Increase padding around text */
+    min-height: 45px !important; /* Ensure minimum height */
+    box-shadow: 0 2px 5px rgba(106, 90, 205, 0.1); /* Subtle shadow lift */
+    transition: all 0.2s ease-in-out; /* Smooth transition for hover effect */
+    font-weight: 700 !important; /* Make the text bolder */
 }
 
 /* B2: GLOW ON HOVER: Increase shadow/lift and change color when hovering */
 [data-testid="stTabs"] button[role="tab"]:hover {
-    color: #8a2be2 !important; /* Change text color to purple */
-    border-bottom: 2px solid #8a2be2 !important; /* Highlight bottom border */
-    box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4); /* Stronger glow/lift effect */
-    transform: translateY(-2px); /* Slight lift */
+    color: #8a2be2 !important; /* Change text color to purple */
+    border-bottom: 2px solid #8a2be2 !important; /* Highlight bottom border */
+    box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4); /* Stronger glow/lift effect */
+    transform: translateY(-2px); /* Slight lift */
 }
 
 /* Ensure standard components have good contrast */
 h1, h2, h3, h4, h5, h6, .stMarkdown, .stText {
-    color: #1e1e1e !important; 
+    color: #1e1e1e !important; 
 }
 
 /* --- Your Existing Styles Below (Retained for functionality/design) --- */
 
 .navbar { position: sticky; top: 0; z-index: 1000; padding: 12px 18px; margin: 0 0 18px 0; border-radius: 14px;
-  background: linear-gradient(90deg, #6a5acd 0%, #8a2be2 100%); 
-  box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
-  border: 1px solid rgba(255,255,255,0.35); display: flex; justify-content: space-between; align-items: center; }
+  background: linear-gradient(90deg, #6a5acd 0%, #8a2be2 100%); 
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+  border: 1px solid rgba(255,255,255,0.35); display: flex; justify-content: space-between; align-items: center; }
 .nav-title-wrap { display: flex; align-items: center; gap: 10px; }
 .cashflow-girl { font-size: 30px; animation: float-money 2s ease-in-out infinite; position: relative; }
 @keyframes float-money { 0% { transform: translateY(0px) rotate(0deg); } 25% { transform: translateY(-5px) rotate(5deg); }
-  50% { transform: translateY(0px) rotate(0deg); } 75% { transform: translateY(-5px) rotate(-5deg); } 100% { transform: translateY(0px) rotate(0deg); } }
+  50% { transform: translateY(0px) rotate(0deg); } 75% { transform: translateY(-5px) rotate(-5deg); } 100% { transform: translateY(0px) rotate(0deg); } }
 .nav-title { font-weight: 800; font-size: 24px; color:#ffffff; letter-spacing: .5px; }
 .nav-sub { color:#ddddff; font-size:13px; margin-top:-2px; }
 .coin-wrap { position: relative; height: 60px; margin: 6px 0 0 0; overflow: hidden; }
 /* Applied coin-pulse to all .coin elements */
 @keyframes coin-pulse {
-    0%, 100% {{
-        transform: scale(1.0) translateY(0px);
-        filter: drop-shadow(0 0 8px gold) drop-shadow(0 0 3px orange);
-    }}
-    50% {{
-        transform: scale(1.1) translateY(-2px);
-        filter: drop-shadow(0 0 12px gold) drop-shadow(0 0 6px orange);
-    }}
+    0%, 100% {{
+        transform: scale(1.0) translateY(0px);
+        filter: drop-shadow(0 0 8px gold) drop-shadow(0 0 3px orange);
+    }}
+    50% {{
+        transform: scale(1.1) translateY(-2px);
+        filter: drop-shadow(0 0 12px gold) drop-shadow(0 0 6px orange);
+    }}
 }
-.coin { position:absolute; top:-50px; font-size:24px; 
-    filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); 
-    animation: drop 4s linear infinite, coin-pulse 2s ease-in-out infinite; }
+.coin { position:absolute; top:-50px; font-size:24px; 
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); 
+    animation: drop 4s linear infinite, coin-pulse 2s ease-in-out infinite; }
 .coin:nth-child(2){left:15%; animation-delay:.6s}
 .coin:nth-child(3){left:30%; animation-delay:.1s}
 .coin:nth-child(4){left:45%; animation-delay:.9s}
@@ -2368,12 +2244,12 @@ h1, h2, h3, h4, h5, h6, .stMarkdown, .stText {
 .coin:nth-child(6){left:75%; animation-delay:.3s}
 .coin:nth-child(7){left:90%; animation-delay:.2s}
 @keyframes drop { 0%{ transform: translateY(-60px) rotate(0deg); opacity:0 } 10%{ opacity:1 } 100%{ transform: translateY(120px) rotate(360deg); opacity:0 } }
-.card {border-radius:16px; background:#ffffff; 
-  padding:16px; box-shadow: 0 4px 15px rgba(106, 90, 205, 0.2); border: 1px solid #d4c1f5; color: #1e1e1e;}
+.card {border-radius:16px; background:#ffffff; 
+  padding:16px; box-shadow: 0 4px 15px rgba(106, 90, 205, 0.2); border: 1px solid #d4c1f5; color: #1e1e1e;}
 .metric {font-size:18px; font-weight:700}
 .bot {background:#f0f2f6; color:#1e1e1e; padding:10px 12px; border-radius:10px; border:1px solid #d4c1f5}
-.streak-card{ border-radius:16px; padding:16px; margin-top:10px; background:#ffffff; 
-  border:1px solid #d4c1f5; box-shadow:0 4px 15px rgba(106, 90, 205, 0.2); color: #1e1e1e;}
+.streak-card{ border-radius:16px; padding:16px; margin-top:10px; background:#ffffff; 
+  border:1px solid #d4c1f5; box-shadow:0 4px 15px rgba(106, 90, 205, 0.2); color: #1e1e1e;}
 .piggy-wrap{ position:relative; height:84px; display:flex; align-items:center; gap:16px }
 .piggy{ font-size:58px; filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); }
 .piggy.dim{ opacity:.55; filter: grayscale(0.6) }
@@ -2386,20 +2262,20 @@ h1, h2, h3, h4, h5, h6, .stMarkdown, .stText {
 .profile-wrap{display:flex;align-items:center;justify-content:flex-end}
 .profile-pic{ width:70px;height:70px;border-radius:50%;object-fit:cover; box-shadow:0 6px 20px rgba(0,0,0,.35); border:2px solid #25D366; }
 .upi-qr-wrap {
-  position: relative; border-radius: 12px; padding: 10px;
-  background: rgba(138, 43, 226, 0.1);
-  border: 1px solid rgba(138, 43, 226, 0.5);
-  box-shadow: 0 0 15px rgba(138, 43, 226, 0.3);
-  animation: qr-glow 2s infinite alternate, qr-flicker 1.5s step-end infinite;
+  position: relative; border-radius: 12px; padding: 10px;
+  background: rgba(138, 43, 226, 0.1);
+  border: 1px solid rgba(138, 43, 226, 0.5);
+  box-shadow: 0 0 15px rgba(138, 43, 226, 0.3);
+  animation: qr-glow 2s infinite alternate, qr-flicker 1.5s step-end infinite;
 }
 @keyframes qr-glow {
-  0% { box-shadow: 0 0 10px rgba(138, 43, 226, 0.2); transform: scale(1); }
-  50% { transform: scale(1.01); }
-  100% { box-shadow: 0 0 20px rgba(138, 43, 226, 0.5); transform: scale(1); }
+  0% { box-shadow: 0 0 10px rgba(138, 43, 226, 0.2); transform: scale(1); }
+  50% { transform: scale(1.01); }
+  100% { box-shadow: 0 0 20px rgba(138, 43, 226, 0.5); transform: scale(1); }
 }
 @keyframes qr-flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.9; } }
 .promise{ font-weight:900; font-size:20px; letter-spacing:.3px; color:#6a5acd; text-align:center; margin:8px 0 2px 0;
-  animation: none; } 
+  animation: none; } 
 .callout-box-vfa { background: #8a2be2; color: white; padding: 8px 12px; border-radius: 8px; font-weight: 600; margin-top: 15px; display: flex; align-items: center; gap: 10px; animation: none; }
 .animated-arrow-vfa { font-size: 24px; animation: pulsing_arrow 1.5s infinite; display: inline-block; }
 .stSuccess { background-color: #e6f7e9 !important; border-left: 5px solid #22c55e !important; color: #1e1e1e !important; }
@@ -2407,32 +2283,32 @@ h1, h2, h3, h4, h5, h6, .stMarkdown, .stText {
 
 /* FIXES FOR TEXT CONTRAST IN THE AI PLAN */
 .stApp div[data-testid^="stExpander"] * { color: #1e1e1e !important; }
-.stApp div[style*="rgba(142, 45, 226, 0.1)"] * { color: #1e1e1e !important; } 
+.stApp div[style*="rgba(142, 45, 226, 0.1)"] * { color: #1e1e1e !important; } 
 
 /* Fixes for dark charts displayed in the dark theme setting */
 .modebar, .c-modebar { background: #1e1e1e; }
 .js-plotly-plot { background: #ffffff !important; }
 
 /* Custom radio button styles for multi-color */
-.multicolor-radio > div[data-testid="stRadio"] label:nth-child(1) span { background-color: #ffeb3b; color: #1e1e1e; border-color: #ffeb3b; } 
-.multicolor-radio > div[data-testid="stRadio"] label:nth-child(2) span { background-color: #ff9800; color: white; border-color: #ff9800; } 
-.multicolor-radio > div[data-testid="stRadio"] label:nth-child(3) span { background-color: #2196f3; color: white; border-color: #2196f3; } 
+.multicolor-radio > div[data-testid="stRadio"] label:nth-child(1) span { background-color: #ffeb3b; color: #1e1e1e; border-color: #ffeb3b; } 
+.multicolor-radio > div[data-testid="stRadio"] label:nth-child(2) span { background-color: #ff9800; color: white; border-color: #ff9800; } 
+.multicolor-radio > div[data-testid="stRadio"] label:nth-child(3) span { background-color: #2196f3; color: white; border-color: #2196f3; } 
 
-.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(1) span { background-color: #4caf50; color: white; border-color: #4caf50; } 
-.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(2) span { background-color: #ff9800; color: white; border-color: #ff9800; } 
-.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(3) span { background-color: #f44336; color: white; border-color: #f44336; } 
+.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(1) span { background-color: #4caf50; color: white; border-color: #4caf50; } 
+.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(2) span { background-color: #ff9800; color: white; border-color: #ff9800; } 
+.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(3) span { background-color: #f44336; color: white; border-color: #f44336; } 
 
 .multicolor-radio div[data-testid="stRadio"] label span,
 .multicolor-radio-commute div[data-testid="stRadio"] label span {
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-weight: 700;
-    transition: all 0.2s;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    transition: all 0.2s;
 }
 .multicolor-radio div[data-testid="stRadio"] input:checked + div > span,
 .multicolor-radio-commute div[data-testid="stRadio"] input:checked + div > span {
-    border: 3px solid #6a5acd !important; 
-    box-shadow: 0 0 10px rgba(106, 90, 205, 0.7);
+    border: 3px solid #6a5acd !important; 
+    box-shadow: 0 0 10px rgba(106, 90, 205, 0.7);
 }
 </style>
 """,
@@ -2672,7 +2548,7 @@ with tab_dashboard:
     else:
         # Fallback to 1 day if the date is invalid or uninitialized
         days_to_go = 1
-
+        
 
     remaining_target = max(0, st.session_state["goal_target"] - st.session_state["goal_current"])
     required_daily_saving = remaining_target / days_to_go
@@ -2697,10 +2573,23 @@ with tab_dashboard:
             full_range = pd.date_range(start=date.today(), end=st.session_state["goal_date"], freq='D')
             target_df = pd.DataFrame(index=full_range)
             
-            # Calculate linear required progress
-            target_df['Required_Cumulative'] = st.session_state["goal_current"] + (st.session_state["goal_target"] - st.session_state["goal_current"]) * (
-                (target_df.index.date - date.today()) / (st.session_state["goal_date"] - date.today())
-            ).days
+            # FIX 1: Correctly calculate Required Cumulative Progress using Pandas Series Accessor .dt.days
+            
+            # 1. Scalar calculations
+            total_remaining_target = st.session_state["goal_target"] - st.session_state["goal_current"]
+
+            # 2. Get the time difference Series (Series of Timedeltas)
+            # The calculation (st.session_state["goal_date"] - date.today()) is a scalar timedelta (handled by days_to_go)
+            time_diff_series = target_df.index.date - date.today()
+            
+            # 3. Use .dt.days to get a Series of integer days
+            days_since_start = time_diff_series.dt.days
+
+            # 4. Calculate required cumulative progress using Series math (REPLACED LINES 2687-2689)
+            target_df['Required_Cumulative'] = st.session_state["goal_current"] + (
+                total_remaining_target * (days_since_start / days_to_go)
+            )
+            
             target_df.iloc[-1, target_df.columns.get_loc('Required_Cumulative')] = st.session_state["goal_target"] # Ensure target date hits the amount
 
             # Merge for plotting
@@ -2783,8 +2672,8 @@ with tab_dashboard:
 
     with top_right_col:
         health_score_data = compute_fin_health_score(df_local, budgets=current_budgets)
-        display_health_score(health_score_data)
         st.session_state["health_score_data"] = health_score_data
+        display_health_score(health_score_data) # Ensure display uses the saved data
 
         # === NEW: Budget overrun alerts (current month) ===
         try:
@@ -3123,9 +3012,7 @@ with tab_dashboard:
         if st.button("🔊 Speak now", key="speak_bilingual_now"):
             speak_bilingual_js(advice_hi, advice_en, order=order)
 
-        if enable_listener:
-            smart_machine_listener(advice_hi, advice_en, wake_word="smart machine", order=order)
-            st.info("Listening… say **smart machine**. Allow mic permission; keep this tab focused.")
+        # Removed smart_machine_listener logic to avoid erroring due to mic permissions in hosted envs
 
         # ---------- Main charts & table ----------
         st.markdown("---")
@@ -3413,7 +3300,8 @@ with tab_dashboard:
                 )
 
                 try:
-                    img_bytes = fig_report.to_image(format="png")
+                    # FIX: Use the io buffer to get the image
+                    img_bytes = fig_report.to_image(format="png") 
                 except ValueError:
                     st.error("❌ Plotly to Image failed. You may need to install `kaleido` (`pip install kaleido`).")
                     st.stop()
@@ -3739,6 +3627,4 @@ if __name__ == "__main__":
     try:
         st.session_state["DB"].save()
     except Exception:
-        pass 
-
-    
+        pass
