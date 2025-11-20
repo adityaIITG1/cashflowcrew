@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import os
@@ -64,7 +63,7 @@ from helper import (
     speak_bilingual_js,
     smart_machine_listener,
     gen_viz_spec,  # noqa: F401
-    chat_reply,    # noqa: F401
+    chat_reply,  # noqa: F401
     gemini_enabled # noqa: F401
 )
 
@@ -125,7 +124,7 @@ div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {{ /* T
     
     /* THE GLOW EFFECT - Multi-layered shadows */
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.6), /* Deep central shadow */
-                0 0 15px rgba(147, 51, 234, 0.4); /* Neon Purple Glow */
+    0 0 15px rgba(147, 51, 234, 0.4); /* Neon Purple Glow */
     border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle white border */
 }}
 
@@ -734,7 +733,7 @@ def render_city_affordability_tab() -> None:
                 avg_food=avg_food,
                 avg_utils=avg_utils,
                 sharing=sharing, # Use value from form 
-                locality=loc,    # Use value from form 
+                locality=loc,  # Use value from form 
                 commute=commute, # Use value from form 
                 profile=profile  # Use value from form 
             )
@@ -1084,7 +1083,7 @@ def render_ca_plan_tab(df: pd.DataFrame):
                  "month": i, 
                  "amount": suggested_sip * i, 
                  "Date": date.today() + timedelta(days=30*i)
-               })
+                })
 
         data_sources = {
             "expense_caps": [
@@ -1526,6 +1525,213 @@ def save_creds(creds):
 VALID_USERS = load_creds()
 # -----------------------------------------------------
 
+# --- New Dynamic Banner Content for Requested Changes ---
+CURRENT_USER_ID_PLACEHOLDER = "aditya01" # Placeholder for unauthenticated rendering
+GEMINI_ENABLED_STATUS = "Gemini 2.5 Flash, OpenAI GPT-3.5-Turbo (Fallback)"
+ALL_TECHNOLOGIES = "Streamlit, Pandas, NumPy, Plotly, Gemini SDK, OpenAI SDK, OCR (Tesseract), ETL/Data Analytics, Time Series (ETS/SMA), Joblib, MiniDB"
+PROMISE_TEXT = "I will not let your single penny waste use me"
+
+# --- 1. DYNAMIC HEADER CSS (UPDATED) ---
+DYNAMIC_HEADER_CSS = f"""
+<style>
+/* ---------------- DYNAMIC HEADER STYLES ---------------- */
+.dynamic-header-container {{
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999; /* Ensure it stays above everything */
+    padding: 10px 20px;
+    margin: 0;
+    transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Smooth transition for hover */
+    
+    /* Neon background and glow */
+    background: linear-gradient(90deg, {ACCENT_PURPLE} 0%, #8a2be2 100%);
+    box-shadow: 0 0 25px rgba(147, 51, 234, 0.9);
+    border-bottom: 2px solid {ACCENT_CYAN};
+    
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100px; /* Increased height for content */
+}}
+
+/* Hover Effects: Glow, Zoom Out */
+.dynamic-header-container:hover {{
+    box-shadow: 0 0 50px {ACCENT_PURPLE}, 0 0 20px {ACCENT_CYAN}; /* Stronger dual glow */
+    transform: scale(0.98); /* Slight zoom-out effect */
+    cursor: default;
+}}
+
+/* Header Content Alignment */
+.header-content {{
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    flex-grow: 1;
+}}
+
+/* Main Title Style */
+.header-title {{
+    font-size: 24px;
+    font-weight: 900;
+    color: #ffffff;
+    letter-spacing: 1px;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    margin-bottom: 5px;
+}}
+
+/* Subtitle for Tech/AI */
+.header-tech {{
+    font-size: 11px;
+    color: #cccccc;
+    font-weight: 500;
+    margin-top: 5px;
+    max-width: 600px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}}
+
+/* Money Promise Animation Styling */
+.money-promise-wrap {{
+    margin-top: 5px;
+    font-size: 14px;
+    font-weight: 700;
+    color: {ACCENT_CYAN};
+    text-shadow: 0 0 5px {ACCENT_CYAN}90;
+    white-space: nowrap;
+}}
+
+@keyframes jump-in {{
+    0% {{ opacity: 0; transform: translateY(20px) scale(0.5); }}
+    100% {{ opacity: 1; transform: translateY(0) scale(1.0); }}
+}}
+
+/* Right-side elements: Brain, Robot, Flag/Chatbot */
+.header-right {{
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-left: 20px;
+}}
+
+/* Rotating Glowing Brain */
+.rotating-brain {{
+    font-size: 40px;
+    filter: drop-shadow(0 0 10px yellow);
+    animation: rotate-glow 5s linear infinite, brain-pulse 2s ease-in-out infinite;
+}}
+@keyframes rotate-glow {{
+    0% {{ transform: rotate(0deg) scale(1.0); }}
+    100% {{ transform: rotate(360deg) scale(1.0); }}
+}}
+@keyframes brain-pulse {{
+    0%, 100% {{ filter: drop-shadow(0 0 10px yellow); }}
+    50% {{ filter: drop-shadow(0 0 20px yellow) drop-shadow(0 0 5px orange); }}
+}}
+
+/* Flag and Chatbot */
+.made-in-india-text {{
+    font-size: 14px;
+    color: #fff;
+    font-weight: 600;
+}}
+.chatbot-prakriti {{
+    font-size: 35px;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.3s;
+}}
+.chatbot-prakriti:hover {{
+    transform: scale(1.1);
+}}
+
+/* Hand Flickering/Waving */
+.chatbot-prakriti .hand {{
+    font-size: 35px;
+    opacity: 0.9;
+    animation: hand-wave 1s ease-in-out infinite alternate;
+}}
+@keyframes hand-wave {{
+    0% {{ transform: rotate(0deg); }}
+    100% {{ transform: rotate(15deg); }}
+}}
+
+
+/* Override Streamlit's main content area to compensate for the fixed header */
+[data-testid="stAppViewContainer"] > .main {{
+    padding-top: 100px !important; 
+}}
+
+</style>
+"""
+
+# --- 2. DYNAMIC HEADER HTML (with placeholders for JS animation) ---
+DYNAMIC_HEADER_HTML = f"""
+<div class="dynamic-header-container">
+    <div class="header-content">
+        <div class="header-title">
+            <span style="color: {ACCENT_CYAN};">Personal Finance AI Dashboard</span>
+            <span class="made-in-india-text">({CURRENT_USER_ID_PLACEHOLDER})</span>
+        </div>
+        <div class="money-promise-wrap" id="promise-text-container">
+            Loading promise...
+        </div>
+        <div class="header-tech">
+            AI Models: **{GEMINI_ENABLED_STATUS}** | Technologies: {ALL_TECHNOLOGIES}
+        </div>
+    </div>
+    <div class="header-right">
+        <span class="rotating-brain" title="AI Intelligence">🧠</span>
+        <span style="font-size: 40px; color: gold;" title="Gemini Integrated">🤖★</span>
+        <div class="made-in-india-flag" title="Made in India">
+            <div class="made-in-india-text">A small Made in India</div>
+            <div style="font-size: 20px;">🇮🇳</div>
+        </div>
+        <div class="chatbot-prakriti" onclick="alert('Prakriti AI says: I will not let your single penny waste. Use me!')">
+            <span class="hand">🖐</span>
+        </div>
+    </div>
+</div>
+"""
+
+# --- 3. JAVASCRIPT FOR THE JUMPING TEXT ANIMATION ---
+JUMPING_TEXT_JS = f"""
+<script>
+// The target text to animate
+const targetText = "{PROMISE_TEXT}";
+const container = document.getElementById('promise-text-container');
+const delayBetweenLoops = 5000; // 5 seconds
+const animationDuration = 800; // 0.8 seconds total for all characters to jump in
+
+function animatePromiseText() {{
+    container.innerHTML = '';
+    let html = '';
+    let charIndex = 0;
+
+    // Split the text into individual characters wrapped in spans
+    targetText.split('').forEach(char => {{
+        const charToDisplay = char === ' ' ? '&nbsp;' : char;
+        // Inject animation properties and stagger the delay
+        html += `<span style="opacity:0; transform: translateY(20px); animation: jump-in 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards; animation-delay: ${{charIndex * (animationDuration / targetText.length)}}s;">${{charToDisplay}}</span>`;
+        charIndex++;
+    }});
+    
+    container.innerHTML = html;
+
+    // After animation finishes, schedule the next loop
+    setTimeout(() => {{
+        // Clear the text and restart the animation after a short pause
+        setTimeout(animatePromiseText, delayBetweenLoops); 
+    }}, animationDuration + 100); 
+}}
+
+// Start the animation loop when the script loads
+animatePromiseText();
+</script>
+"""
 
 # ============================== Utilities / FX / Sound ==============================
 
@@ -1595,6 +1801,7 @@ def _b64_audio_from_file(path: Path) -> str | None:
 _FALLBACK_WAV_B64 = (
     "UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAAACABYAAABkYXRhAAAAAA"
     "AAAAAAgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
+    "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
     "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
 )
 
@@ -1610,11 +1817,11 @@ def play_paid_sound(name: str, amount: float) -> None:
       <script>
       	document.getElementById('payment-sound-{rand_id}').play().catch(e => console.log('Audio play blocked or failed:', e));
       	try {{
-      	  const u = new SpeechSynthesisUtterance("{spoken}");
-      	  u.lang = "hi-IN";
-      	  u.rate = 1.0; u.pitch = 1.0;
-      	  window.speechSynthesis.cancel();
-      	  window.speechSynthesis.speak(u);
+      	  const u = new SpeechSynthesisUtterance("{spoken}");
+      	  u.lang = "hi-IN";
+      	  u.rate = 1.0; u.pitch = 1.0;
+      	  window.speechSynthesis.cancel();
+      	  window.speechSynthesis.speak(u);
       	}} catch(e) {{ console.warn(e); }}
       </script>
     """
@@ -2025,7 +2232,7 @@ def save_transactions(user_id: str, df: pd.DataFrame):
             typ=row["type"],
         )
 
-# --- NEW: AI Financial Plan Logic ---
+# --- NEW: AI Financial Plan Logic (Legacy View) ---
 def _get_average_monthly_income(df: pd.DataFrame) -> float:
     """Calculates the average monthly income from the DataFrame."""
     if df.empty:
@@ -2043,10 +2250,10 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     st.markdown("""
     <style>
     .fade-line { opacity: 0; background: rgba(255,255,255,0.07); border-left: 4px solid #00f5d4; margin: 6px 0;
-    	          padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
-    	          animation: fadeIn 1.3s ease-in-out forwards; }
+    	          padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
+    	          animation: fadeIn 1.3s ease-in-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); box-shadow: 0 0 5px #00f5d4; }
-    	                  to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
+    	                  to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
     .plan-title { color: #8e2de2; text-align: center; margin-bottom: 20px; }
     .speak-button { background:#8e2de2;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600; }
     </style>
@@ -2070,7 +2277,7 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     st.number_input(
         "💰 Enter/Confirm your Monthly Income (₹):",
         min_value=int(MIN_SALARY_ALLOWED),
-        # value=int(default_salary),  <--- REMOVED TO PREVENT StreamlitAPIException
+        # value=int(default_salary),   <--- REMOVED TO PREVENT StreamlitAPIException
         step=1000,
         key="ai_plan_salary"
     )
@@ -2438,7 +2645,8 @@ html, body, [data-testid="stAppViewContainer"] {{
 
 /* 🚀 AGGRESSIVE FULL-WIDTH AND CENTER ALIGNMENT FIXES */
 [data-testid="stAppViewContainer"] > .main {{
-    padding: 0px !important;
+    /* This padding-top is now controlled by the DYNAMIC_HEADER_CSS */
+    padding: 0px !important; 
     margin: 0 auto !important;
 }}
 .main > div {{
@@ -2484,49 +2692,27 @@ tab_dashboard, tab_stock, tab_plan, tab_city, tab_ca_plan, tab_tools = st.tabs([
     "🧰 Settings & Tools" # Renamed tab
 ])
 
-# ---------- Navbar ----------
-colA, colB = st.columns([4, 0.6])
-with colA:
-    st.markdown(
-        f"""
-    <div class="navbar">
-      <div class="nav-title-wrap">
-        <span class="cashflow-girl">👩‍💰💸</span>
-        <div>
-          <div class="nav-title-custom">Personal Finance AI Dashboard</div>
-          <div class="nav-sub">Cashflow Crew ({CURRENT_USER_ID}) — Visualize expenses, savings & investments</div>
-        </div>
-      </div>
-      <div class="coin-wrap">
-        <span class="coin">🪙</span><span class="coin">💰</span><span class="coin">🪙</span>
-        <span class="coin">💰</span><span class="coin">🪙</span><span class="coin">💰</span><span class="coin">🪙</span>
-      </div>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
+# ---------- DYNAMIC HEADER / BANNER (REPLACES OLD NAVBAR) ----------
 
-with colB:
-    st.markdown("<div class='profile-wrap'>", unsafe_allow_html=True)
-    sound_status = "🔊 ON" if not st.session_state.get("sound_muted", False) else "🔇 OFF"
-    if st.button(sound_status, key="toggle_sound", help="Toggle payment notification sound"):
-        st.session_state["sound_muted"] = not st.session_state.get("sound_muted", False)
-        st.rerun()
-    if PROFILE64:
-        st.markdown(
-            f"""<img class="profile-pic" src="data:image/jpg;base64,{PROFILE64}" />""",
-            unsafe_allow_html=True,
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
+# Update CURRENT_USER_ID_PLACEHOLDER with the authenticated user ID
+DYNAMIC_HEADER_HTML = DYNAMIC_HEADER_HTML.replace(CURRENT_USER_ID_PLACEHOLDER, CURRENT_USER_ID)
+
+# Inject CSS and HTML for the new fixed banner
+st.markdown(DYNAMIC_HEADER_CSS, unsafe_allow_html=True)
+st.markdown(DYNAMIC_HEADER_HTML, unsafe_allow_html=True)
+
+# Inject JavaScript for the jumping text animation
+components.html(JUMPING_TEXT_JS, height=0)
+
 
 if HAS_GEMINI_SDK:
-    st.success("🎉 **Now integrated with GEMINI!** Access intelligent financial guidance via the Smart Chatbot and AI Plan.")
+    st.info("🎉 **Now integrated with GEMINI!** Access intelligent financial guidance via the Smart Chatbot and AI Plan.")
 else:
     st.error("⚠️ **GEMINI SDK Missing:** Chatbot intelligence is disabled. Please run `pip install google-genai`.")
 
-# Display personalized promise
-st.markdown(f"<div class='promise'>{USER_SETTINGS['promise']}</div>", unsafe_allow_html=True)
-
+# NOTE: The personalized promise line is now dynamically generated in the header JS/HTML
+# The old promise display logic is removed here.
+# ------------------------------------------------------------------
 
 with tab_dashboard:
     tb1, tb2, tb3, tb4, tb5, tb6, tb7 = st.columns([1.6, 1.4, 1.4, 1.8, 1.2, 1, 1.4])
@@ -2601,7 +2787,7 @@ with tab_dashboard:
     f1, f2, f3 = st.columns([1.3, 1.6, 1.1])
     
     # Initialize start and end with safe defaults to prevent NameError
-    start: date = date.today() - timedelta(days=365)  
+    start: date = date.today() - timedelta(days=365) 
     end: date = date.today()
     sel_cats: List[str] = []
     sel_types: List[str] = []
@@ -2882,8 +3068,8 @@ with tab_dashboard:
             st.markdown(
                 f"""
                 <div class="piggy-wrap">
-                  <div class="{pig_class}">🐷</div>
-                  {coins_html}
+                    <div class="{pig_class}">🐷</div>
+                    {coins_html}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -3369,7 +3555,7 @@ with tab_dashboard:
             simulated_values = [
                 np.random.randint(20000, 150000), 
                 np.random.randint(10000, 35000),  
-                np.random.randint(5000, 50000),   
+                np.random.randint(5000, 50000),    
                 np.random.randint(50000, 180000), 
                 np.random.randint(30000, 100000), 
             ]
@@ -3648,8 +3834,8 @@ with tab_stock:
                 height=400
             )
             st.plotly_chart(fig_bar, use_container_width=True)
-    else:
-        st.info("Enter a stock symbol and click 'Fetch Quote & Charts'.")
+        else:
+            st.info("Enter a stock symbol and click 'Fetch Quote & Charts'.")
 
 # --- Financial Planning Tab ---
 with tab_plan:
