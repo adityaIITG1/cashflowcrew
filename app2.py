@@ -62,8 +62,8 @@ from helper import (
     build_smart_advice_bilingual,
     speak_bilingual_js,
     smart_machine_listener,
-    gen_viz_spec,  # noqa: F401
-    chat_reply,  # noqa: F401
+    gen_viz_spec, # noqa: F401
+    chat_reply, # noqa: F401
     gemini_enabled # noqa: F401
 )
 
@@ -733,9 +733,9 @@ def render_city_affordability_tab() -> None:
                 avg_food=avg_food,
                 avg_utils=avg_utils,
                 sharing=sharing, # Use value from form 
-                locality=loc,  # Use value from form 
+                locality=loc, # Use value from form 
                 commute=commute, # Use value from form 
-                profile=profile  # Use value from form 
+                profile=profile # Use value from form 
             )
             all_cities_comp_rows.append({
                 "City": city,
@@ -791,6 +791,7 @@ def render_city_affordability_tab() -> None:
 # 🧑‍💼 NEW: Personal CA Financial Plan Generator
 # ============================================================
 
+@st.cache_data(ttl=timedelta(hours=6)) # <<< ADDED CACHING >>>
 def generate_ca_financial_plan(life_stage: str, city: str, monthly_income: int, monthly_expenses: Optional[int] = None) -> Tuple[str, str, dict]:
     """
     Generates a full financial blueprint based on life stage, city, and income.
@@ -1802,6 +1803,7 @@ _FALLBACK_WAV_B64 = (
     "UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAAACABYAAABkYXRhAAAAAA"
     "AAAAAAgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
     "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
+    "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
     "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
 )
 
@@ -2032,6 +2034,7 @@ def read_file(file):
             return pd.read_csv(file)
     return pd.read_excel(file)
 
+@st.cache_data # <<< ADDED CACHING >>>
 def normalize(df: pd.DataFrame) -> pd.DataFrame:
     if df is None:
         return pd.DataFrame()
@@ -2050,6 +2053,7 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
         df["date"] = pd.Timestamp.today().date()
     return df
 
+@st.cache_data # <<< ADDED CACHING >>>
 def add_period(df: pd.DataFrame, group_period: str) -> pd.DataFrame:
     t = df.copy()
     t["date"] = pd.to_datetime(t["date"])
@@ -2061,6 +2065,7 @@ def add_period(df: pd.DataFrame, group_period: str) -> pd.DataFrame:
         t["period"] = t["date"].dt.date.astype(str)
     return t
 
+@st.cache_data # <<< ADDED CACHING >>>
 def daily_net_frame(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.shape[0] == 0:
         return pd.DataFrame(columns=["day", "income", "expense", "net_saving"])
@@ -2233,6 +2238,7 @@ def save_transactions(user_id: str, df: pd.DataFrame):
         )
 
 # --- NEW: AI Financial Plan Logic (Legacy View) ---
+@st.cache_data(ttl=timedelta(hours=1)) # <<< ADDED CACHING >>>
 def _get_average_monthly_income(df: pd.DataFrame) -> float:
     """Calculates the average monthly income from the DataFrame."""
     if df.empty:
@@ -2277,7 +2283,7 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     st.number_input(
         "💰 Enter/Confirm your Monthly Income (₹):",
         min_value=int(MIN_SALARY_ALLOWED),
-        # value=int(default_salary),   <--- REMOVED TO PREVENT StreamlitAPIException
+        # value=int(default_salary),    <--- REMOVED TO PREVENT StreamlitAPIException
         step=1000,
         key="ai_plan_salary"
     )
@@ -2297,15 +2303,15 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
 
         with st.spinner("🤖 Gemini 2.5 is analyzing your profile and creating a strategy..."):
             prompt = f"""
-            You are a professional financial advisor named PRAKRITI AI.
-            The user earns ₹{salary:,.0f} per month and has a goal: '{goal if goal else 'None'}'.
-            Provide a real-life savings strategy.
-            Suggest:
-            1. Monthly breakdown and ideal percentages for four categories: **Essentials (50%)**, **Savings (25%)**, **Investments (20%)**, and **Lifestyle/Flex (5%)**.
-            2. 3-4 quick, actionable financial tips related to their goal (if specified) or their income level.
-            3. A summary of the breakdown in a bulleted list format.
-            Be concise (max 300 words), practical, realistic, and easy to follow. Include emojis.
-            """
+            You are a professional financial advisor named PRAKRITI AI.
+            The user earns ₹{salary:,.0f} per month and has a goal: '{goal if goal else 'None'}'.
+            Provide a real-life savings strategy.
+            Suggest:
+            1. Monthly breakdown and ideal percentages for four categories: **Essentials (50%)**, **Savings (25%)**, **Investments (20%)**, and **Lifestyle/Flex (5%)**.
+            2. 3-4 quick, actionable financial tips related to their goal (if specified) or their income level.
+            3. A summary of the breakdown in a bulleted list format.
+            Be concise (max 300 words), practical, realistic, and easy to follow. Include emojis.
+            """
             context_str = (
                 f"You are a financial coach. The user is {CURRENT_USER_ID} and their average monthly income is {money(avg_income)}."
             )
@@ -2315,10 +2321,10 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
             st.markdown("### 🌟 Your Personalized Financial Plan")
             st.markdown(
                 f"""
-                <div style='background: {DARK_CARD_BG}; border-left: 5px solid {ACCENT_PURPLE}; padding: 15px; border-radius: 10px; margin-top: 15px; color: #ffffff; box-shadow: 0 0 10px {ACCENT_PURPLE}40;'>
-                {advice}
-                </div>
-                """,
+                <div style='background: {DARK_CARD_BG}; border-left: 5px solid {ACCENT_PURPLE}; padding: 15px; border-radius: 10px; margin-top: 15px; color: #ffffff; box-shadow: 0 0 10px {ACCENT_PURPLE}40;'>
+                {advice}
+                </div>
+                """,
                 unsafe_allow_html=True
             )
             st.subheader("📊 Proposed 50/25/20/5 Rule Distribution")
@@ -2349,20 +2355,20 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
             safe_advice_js = advice.replace('"', '\\"').replace("\n", " ")
             st.markdown(
                 f"""
-                <button onclick="speak_advice()" class='speak-button' id='speak-advice-btn' style='background:{ACCENT_PURPLE};'>🔊 Speak Advice</button>
-                <script>
-                function speak_advice() {{
-                    const text = "{safe_advice_js}";
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = "en-IN";
-                    utterance.rate = 1.05;
-                    utterance.pitch = 1.05;
-                    utterance.volume = 1.0;
-                    window.speechSynthesis.cancel();
-                    window.speechSynthesis.speak(utterance);
-                }}
-                </script>
-                """,
+                <button onclick="speak_advice()" class='speak-button' id='speak-advice-btn' style='background:{ACCENT_PURPLE};'>🔊 Speak Advice</button>
+                <script>
+                function speak_advice() {{
+                    const text = "{safe_advice_js}";
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = "en-IN";
+                    utterance.rate = 1.05;
+                    utterance.pitch = 1.05;
+                    utterance.volume = 1.0;
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.speak(utterance);
+                }}
+                </script>
+                """,
                 unsafe_allow_html=True
             )
             st.caption("Click to have the advice read out loud.")
@@ -3555,7 +3561,7 @@ with tab_dashboard:
             simulated_values = [
                 np.random.randint(20000, 150000), 
                 np.random.randint(10000, 35000),  
-                np.random.randint(5000, 50000),    
+                np.random.randint(5000, 50000),   
                 np.random.randint(50000, 180000), 
                 np.random.randint(30000, 100000), 
             ]
