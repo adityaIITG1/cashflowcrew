@@ -82,6 +82,121 @@ try:
 except ImportError:
     HAS_OPENAI_SDK = False
 
+# --- CONFIGURATION CONSTANTS (Matching QCLAY Design) ---
+ACCENT_PURPLE = "#9333ea"
+ACCENT_CYAN = "#00ffc8"
+DARK_CARD_BG = "#1f1f1f"
+DEEP_BG = "#121212"
+
+
+# --- AGGRESSIVE CUSTOM CSS FOR DARK MODE / GLOWING CARDS ---
+CUSTOM_QCLAY_CSS = f"""
+<style>
+/* ---------------- 1. GLOBAL & BASE STYLES (QCLAY DARK) ---------------- */
+
+/* Override Streamlit's main background */
+.stApp {{
+    background-color: {DEEP_BG} !important; 
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+}}
+
+/* Set the sidebar background to match the card color */
+[data-testid="stSidebar"] {{
+    background-color: {DARK_CARD_BG} !important;
+}}
+
+/* Ensure all headers are white */
+h1, h2, h3, h4, h5, h6, label {{
+    color: #ffffff !important;
+}}
+
+/* ---------------- 2. CARD COMPONENT OVERRIDES (GLASS/GLOW) ---------------- */
+
+/* TARGET 1: Containers holding st.metric, st.dataframe, or st.plotly_chart */
+div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stMetric"]),
+div[data-testid*="stVerticalBlock"] > div:has(div.stPlotlyChart),
+div[data-testid*="stVerticalBlock"] > div:has(div.stDataFrame),
+div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {{ /* Target form containers for card look */
+    background-color: {DARK_CARD_BG};
+    padding: 25px;
+    border-radius: 16px; 
+    margin-bottom: 20px;
+    
+    /* THE GLOW EFFECT - Multi-layered shadows */
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.6), /* Deep central shadow */
+                0 0 15px rgba(147, 51, 234, 0.4); /* Neon Purple Glow */
+    border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle white border */
+}}
+
+/* TARGET 2: Apply Glassmorphism to select elements for depth */
+div[data-testid*="stVerticalBlock"] > div:has(div.stPlotlyChart),
+div[data-testid="stVerticalBlockBorder"] {{
+    background-color: rgba(31, 31, 31, 0.8); /* Semi-transparent background */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    /* Adjust glow to be softer/more luminous here */
+    box-shadow: 0 0 20px rgba(147, 51, 234, 0.4); 
+}}
+
+
+/* ---------------- 3. METRICS AND INPUTS STYLES ---------------- */
+
+/* Metric Value (The large numbers) */
+div[data-testid="stMetricValue"] {{
+    color: {ACCENT_CYAN}; /* Bright Neon Cyan/Green */
+    font-size: 2.5rem;
+    font-weight: 800;
+    text-shadow: 0 0 8px rgba(0, 255, 200, 0.4); 
+}}
+
+/* Input Field Overrides for Dark Mode */
+div[data-testid="stTextInput"] > div > div > input,
+div[data-testid="stNumberInput"] > div > div > input,
+div[data-testid="stSelectbox"] button {{
+    background-color: {DEEP_BG} !important; /* Deeper background for input fields */
+    border: 1px solid rgba(147, 51, 234, 0.3); /* Subtle purple border */
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 10px;
+    box-shadow: none !important; 
+    transition: all 0.2s ease-in-out;
+}}
+/* Input Focus Effect (The Neon Glow) */
+div[data-testid="stTextInput"] > div > div > input:focus,
+div[data-testid="stNumberInput"] > div > div > input:focus,
+div[data-testid="stSelectbox"] button:focus {{
+    border-color: {ACCENT_CYAN} !important; /* Bright cyan border on focus */
+    box-shadow: 0 0 10px rgba(0, 255, 200, 0.6) !important; /* Strong Neon Glow */
+    outline: none; 
+}}
+
+/* ---------------- 4. HORIZONTAL SCROLL CARDS (New Layout) ---------------- */
+.scroll-container {{
+    display: flex;
+    overflow-x: auto; /* Enable horizontal scrolling */
+    gap: 20px; 
+    padding: 20px 0; /* Padding for the scrollbar and spacing */
+}}
+.scroll-item-custom {{
+    flex: 0 0 250px; /* Fixed width for each card */
+    min-width: 250px;
+    background-color: {DARK_CARD_BG};
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.6), 0 0 8px rgba(147, 51, 234, 0.2);
+}}
+.scroll-item-custom p {{
+    color: #ffffff; /* Ensure text is visible */
+}}
+.scroll-item-custom h3 {{
+    color: {ACCENT_CYAN}; /* Neon color for metrics */
+}}
+</style>
+"""
+# --- END AGGRESSIVE CUSTOM CSS ---
+
+
 st.set_page_config(page_title="Cash Flow Crew — Personal Finance AI Analyzer", page_icon="📈💰📊", layout="wide")
 # ============================================================
 # 🏙️ NEW: City Affordability (inlined module)
@@ -235,7 +350,8 @@ def _badge_html(cat: str) -> str:
         "no expensive": "#06b6d4",
     }
     c = colors.get(cat, "#64748b")
-    return f"<span style='background:{c};color:#fff;padding:4px 10px;border-radius:999px;font-weight:700'>{cat.upper()}</span>"
+    # Apply dark mode styles to the badge itself
+    return f"<span style='background:{c};color:#fff;padding:4px 10px;border-radius:999px;font-weight:700;box-shadow: 0 0 5px {c}80;'>{cat.upper()}</span>"
 
 def _refine_need(
     base_lw: int,
@@ -650,7 +766,16 @@ def render_city_affordability_tab() -> None:
                 }
             )
             fig_comp.update_traces(texttemplate='₹%{y:,.0f}', textposition='outside')
-            fig_comp.update_layout(height=550, template="plotly_dark")
+            # Custom dark theme update for the chart
+            fig_comp.update_layout(
+                height=550, 
+                template="plotly_dark",
+                paper_bgcolor=DARK_CARD_BG,
+                plot_bgcolor=DARK_CARD_BG,
+                font_color="#ffffff",
+                # Enhance glow effect on bars
+                hoverlabel=dict(bgcolor="#222")
+            ) 
             st.plotly_chart(fig_comp, use_container_width=True)
 
 
@@ -959,7 +1084,7 @@ def render_ca_plan_tab(df: pd.DataFrame):
                  "month": i, 
                  "amount": suggested_sip * i, 
                  "Date": date.today() + timedelta(days=30*i)
-             })
+               })
 
         data_sources = {
             "expense_caps": [
@@ -1011,19 +1136,29 @@ def render_ca_plan_tab(df: pd.DataFrame):
                 if chart_type in ["bar", "pie", "donut", "area", "line"]:
                     
                     if chart_type == "bar":
-                        fig = px.bar(df_chart, x=x_key, y=y_key, color_discrete_sequence=['#6a5acd'])
+                        fig = px.bar(df_chart, x=x_key, y=y_key, color_discrete_sequence=[ACCENT_PURPLE]) # Use Accent
                     elif chart_type == "pie":
-                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.3, color_discrete_sequence=px.colors.qualitative.Pastel)
+                        # Use a custom, dark-friendly sequential color scheme
+                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.3, color_discrete_sequence=px.colors.sequential.Plotly3) 
                     elif chart_type == "donut":
-                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.6, color_discrete_sequence=px.colors.qualitative.Pastel)
+                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.6, color_discrete_sequence=px.colors.sequential.Plotly3)
                     elif chart_type == "line":
-                        fig = px.line(df_chart, x="Date" if x_key == "month" else x_key, y=y_key, markers=True, color_discrete_sequence=['#22c55e'])
+                        fig = px.line(df_chart, x="Date" if x_key == "month" else x_key, y=y_key, markers=True, color_discrete_sequence=[ACCENT_CYAN]) # Use Accent
                         fig.update_xaxes(title_text='Month')
                         
                     elif chart_type == "area":
-                        fig = px.area(df_chart, x=x_key, y=y_key, color_discrete_sequence=['#8a2be2'])
+                        fig = px.area(df_chart, x=x_key, y=y_key, color_discrete_sequence=[ACCENT_PURPLE]) # Use Accent
                     
-                    fig.update_layout(template="plotly_dark", height=300, showlegend=True, margin=dict(t=30, b=30, l=20, r=20))
+                    # ENHANCEMENT: Force dark theme inside the chart to match card
+                    fig.update_layout(
+                        template="plotly_dark", 
+                        height=300, 
+                        showlegend=True, 
+                        margin=dict(t=30, b=30, l=20, r=20),
+                        paper_bgcolor=DARK_CARD_BG,
+                        plot_bgcolor=DARK_CARD_BG,
+                        font_color="#ffffff"
+                    )
                     if chart_type in ["bar"]:
                         fig.update_traces(texttemplate='₹%{y:,.0f}', textposition='outside')
                         fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
@@ -1038,18 +1173,26 @@ def render_ca_plan_tab(df: pd.DataFrame):
                     fig = go.Figure(go.Indicator(
                         mode="gauge+number",
                         value=value,
-                        gauge={"axis": {"range": [0, max_val], "tickwidth": 1, "tickcolor": "darkblue"},
-                               "bar": {"color": "#6a5acd"},
+                        gauge={"axis": {"range": [0, max_val], "tickwidth": 1, "tickcolor": DARK_CARD_BG},
+                               "bar": {"color": ACCENT_CYAN}, # Use Accent
                                "bgcolor": "white",
                                "steps": [
-                                   {"range": [0, max_val * 0.5], "color": "lightgray"},
-                                   {"range": [max_val * 0.5, max_val], "color": "gray"}
+                                   {"range": [0, max_val * 0.5], "color": "#1f1f1f"}, # Darker steps
+                                   {"range": [max_val * 0.5, max_val], "color": "#333333"}
                                ],
-                               "threshold": {"line": {"color": "red", "width": 4}, "thickness": 0.75, "value": emergency_months}
+                               "threshold": {"line": {"color": "#ef4444", "width": 4}, "thickness": 0.75, "value": emergency_months}
                                },
                         number={"valueformat": ".1f"}
                     ))
-                    fig.update_layout(template="plotly_dark", height=300, margin=dict(t=50, b=50, l=20, r=20))
+                    # ENHANCEMENT: Force dark theme inside the chart
+                    fig.update_layout(
+                        template="plotly_dark", 
+                        height=300, 
+                        margin=dict(t=50, b=50, l=20, r=20),
+                        paper_bgcolor=DARK_CARD_BG,
+                        plot_bgcolor=DARK_CARD_BG,
+                        font_color="#ffffff"
+                    )
                     st.plotly_chart(fig, use_container_width=True)
 
                 st.markdown(f"<p style='color:#888;font-size:12px;'>💡 {bp['description']}</p>", unsafe_allow_html=True)
@@ -1452,6 +1595,7 @@ def _b64_audio_from_file(path: Path) -> str | None:
 _FALLBACK_WAV_B64 = (
     "UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAAACABYAAABkYXRhAAAAAA"
     "AAAAAAgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
+    "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
 )
 
 def play_paid_sound(name: str, amount: float) -> None:
@@ -1464,14 +1608,14 @@ def play_paid_sound(name: str, amount: float) -> None:
     html = f"""
       <audio id="payment-sound-{rand_id}" src="{audio_src}" preload="auto" autoplay></audio>
       <script>
-        document.getElementById('payment-sound-{rand_id}').play().catch(e => console.log('Audio play blocked or failed:', e));
-        try {{
-          const u = new SpeechSynthesisUtterance("{spoken}");
-          u.lang = "hi-IN";
-          u.rate = 1.0; u.pitch = 1.0;
-          window.speechSynthesis.cancel();
-          window.speechSynthesis.speak(u);
-        }} catch(e) {{ console.warn(e); }}
+      	document.getElementById('payment-sound-{rand_id}').play().catch(e => console.log('Audio play blocked or failed:', e));
+      	try {{
+      	  const u = new SpeechSynthesisUtterance("{spoken}");
+      	  u.lang = "hi-IN";
+      	  u.rate = 1.0; u.pitch = 1.0;
+      	  window.speechSynthesis.cancel();
+      	  window.speechSynthesis.speak(u);
+      	}} catch(e) {{ console.warn(e); }}
       </script>
     """
     components.html(html, height=0, scrolling=False)
@@ -1491,12 +1635,12 @@ def show_coin_rain(seconds: float = 5.0) -> None:
 /* NEW: Enhanced Coin Animation and Visibility */
 @keyframes coin-pulse {{
     0%, 100% {{
-        transform: scale(1.0) translateY(0px);
-        filter: drop-shadow(0 0 8px gold) drop-shadow(0 0 3px orange);
+    	transform: scale(1.0) translateY(0px);
+    	filter: drop-shadow(0 0 8px gold) drop-shadow(0 0 3px orange);
     }}
     50% {{
-        transform: scale(1.1) translateY(-2px);
-        filter: drop-shadow(0 0 12px gold) drop-shadow(0 0 6px orange);
+    	transform: scale(1.1) translateY(-2px);
+    	filter: drop-shadow(0 0 12px gold) drop-shadow(0 0 6px orange);
     }}
 }}
 .coin-rain {{
@@ -1899,10 +2043,10 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     st.markdown("""
     <style>
     .fade-line { opacity: 0; background: rgba(255,255,255,0.07); border-left: 4px solid #00f5d4; margin: 6px 0;
-                     padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
-                     animation: fadeIn 1.3s ease-in-out forwards; }
+    	          padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
+    	          animation: fadeIn 1.3s ease-in-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); box-shadow: 0 0 5px #00f5d4; }
-                                   to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
+    	                  to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
     .plan-title { color: #8e2de2; text-align: center; margin-bottom: 20px; }
     .speak-button { background:#8e2de2;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600; }
     </style>
@@ -1964,7 +2108,7 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
             st.markdown("### 🌟 Your Personalized Financial Plan")
             st.markdown(
                 f"""
-                <div style='background: rgba(142, 45, 226, 0.1); border-left: 5px solid #8e2de2; padding: 15px; border-radius: 10px; margin-top: 15px; color: #1e1e1e;'>
+                <div style='background: {DARK_CARD_BG}; border-left: 5px solid {ACCENT_PURPLE}; padding: 15px; border-radius: 10px; margin-top: 15px; color: #ffffff; box-shadow: 0 0 10px {ACCENT_PURPLE}40;'>
                 {advice}
                 </div>
                 """,
@@ -1985,6 +2129,9 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
                 fig_pie.update_layout(
                     title_text=f"Monthly Distribution of ₹{salary:,.0f}",
                     template="plotly_dark",
+                    paper_bgcolor=DARK_CARD_BG,
+                    plot_bgcolor=DARK_CARD_BG,
+                    font_color="#ffffff",
                     height=450
                 )
                 st.plotly_chart(fig_pie, use_container_width=True)
@@ -1995,7 +2142,7 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
             safe_advice_js = advice.replace('"', '\\"').replace("\n", " ")
             st.markdown(
                 f"""
-                <button onclick="speak_advice()" class='speak-button' id='speak-advice-btn'>🔊 Speak Advice</button>
+                <button onclick="speak_advice()" class='speak-button' id='speak-advice-btn' style='background:{ACCENT_PURPLE};'>🔊 Speak Advice</button>
                 <script>
                 function speak_advice() {{
                     const text = "{safe_advice_js}";
@@ -2065,37 +2212,40 @@ def _login_view() -> None:
         """
         <style>
         /* Global App Styling for Professional Look */
-        [data-testid="stAppViewContainer"] > .main {background: linear-gradient(145deg, #e4e7ff, #f0f2f6); color: #1e1e1e;}
+        /* Overridden by QCLAY CSS: [data-testid="stAppViewContainer"] > .main {background: linear-gradient(145deg, #e4e7ff, #f0f2f6); color: #1e1e1e;} */
         /* Custom CSS for Login Card */
         .login-card-container {
             max-width: 500px;
             margin: 50px auto;
             padding: 30px;
             border-radius: 16px;
-            background: #ffffff;
-            box-shadow: 0 10px 30px rgba(138, 43, 226, 0.2);
-            border: 1px solid #d4c1f5;
+            background: #1f1f1f; /* Dark card background */
+            color: #ffffff;
+            box-shadow: 0 10px 30px rgba(138, 43, 226, 0.4), 0 0 15px #9333ea60; /* Glow shadow */
+            border: 1px solid #333333;
             animation: slideIn 0.8s ease-out;
         }
         @keyframes slideIn { 0% { opacity: 0; transform: translateY(-50px); } 100% { opacity: 1; transform: translateY(0); } }
         .login-header {
             text-align: center;
-            color: #6a5acd;
+            color: #00ffc8; /* Neon color */
             font-size: 32px;
             font-weight: 800;
             margin-bottom: 25px;
             letter-spacing: 0.5px;
+            text-shadow: 0 0 10px #00ffc840;
         }
         .stButton button {
-            background-color: #6a5acd;
+            background-color: #9333ea; /* Purple Accent */
             color: white;
             border-radius: 8px;
             transition: all 0.2s;
         }
         .stButton button:hover {
             transform: scale(1.02);
-            box-shadow: 0 4px 10px rgba(106, 90, 205, 0.4);
+            box-shadow: 0 4px 10px rgba(147, 51, 234, 0.6);
         }
+        /* Input fields in the login form will inherit the custom QCLAY styles */
         </style>
         <div class="login-card-container">
             <div class="login-header">📈 Cashflow Crew Capital</div>
@@ -2121,7 +2271,7 @@ def _login_view() -> None:
                     # Initialize user settings on first login
                     if username not in st.session_state.get("user_settings", {}):
                         st.session_state.setdefault("user_settings", {})[username] = {
-                            "theme_color": "#6a5acd",
+                            "theme_color": ACCENT_PURPLE,
                             "bg_image": None,
                             "promise": "I promise that I will save 100 rupees per day"
                         }
@@ -2155,7 +2305,7 @@ def _login_view() -> None:
                     
                     # Initialize settings for the new user
                     st.session_state.setdefault("user_settings", {})[new_username] = {
-                        "theme_color": "#6a5acd",
+                        "theme_color": ACCENT_PURPLE,
                         "bg_image": None,
                         "promise": "I promise to start my financial journey strong!"
                     }
@@ -2202,7 +2352,7 @@ if "user_settings" not in st.session_state:
     # Load default settings for the initial user or general fallback
     st.session_state["user_settings"] = {
         "guest": {
-            "theme_color": "#6a5acd",
+            "theme_color": ACCENT_PURPLE,
             "bg_image": None,
             "promise": "I promise that I will save 100 rupees per day"
         }
@@ -2221,7 +2371,7 @@ if not st.session_state["auth_ok"]:
 CURRENT_USER_ID = st.session_state["auth_user"]
 # Fetch current user settings, defaulting to a safe dict if missing
 USER_SETTINGS = st.session_state.get("user_settings", {}).get(CURRENT_USER_ID, {
-    "theme_color": "#6a5acd",
+    "theme_color": ACCENT_PURPLE,
     "bg_image": None,
     "promise": "I promise that I will save 100 rupees per day"
 })
@@ -2231,6 +2381,10 @@ if "coin_rain_show" not in st.session_state:
     st.session_state["coin_rain_show"] = True
 
 # Dynamic CSS injection based on user settings
+# Inject the aggressive QCLAY CSS first
+st.markdown(CUSTOM_QCLAY_CSS, unsafe_allow_html=True)
+
+# Then inject user-specific overrides
 st.markdown(
     f"""
 <style>
@@ -2238,19 +2392,6 @@ st.markdown(
 :root {{
     --main-theme-color: {USER_SETTINGS['theme_color']};
 }}
-
-/* Custom CSS for Login Card (Kept here for consistent override during reruns) */
-.login-card-container {{
-    max-width: 500px;
-    margin: 50px auto;
-    padding: 30px;
-    border-radius: 16px;
-    background: #ffffff;
-    box-shadow: 0 10px 30px rgba(138, 43, 226, 0.2);
-    border: 1px solid #d4c1f5;
-    animation: slideIn 0.8s ease-out;
-}}
-@keyframes slideIn {{ 0% {{ opacity: 0; transform: translateY(-50px); }} 100% {{ opacity: 1; transform: translateY(0); }} }}
 
 .navbar {{
     background: linear-gradient(90deg, var(--main-theme-color) 0%, #8a2be2 100%) !important;
@@ -2263,15 +2404,17 @@ st.markdown(
     box-shadow: 0 4px 10px rgba(106, 90, 205, 0.4); /* Base hover shadow */
 }}
 .promise {{
-    color: var(--main-theme-color) !important;
+    color: {ACCENT_CYAN} !important; /* Force promise text to neon cyan */
+    font-weight: 700 !important;
+    text-shadow: 0 0 5px rgba(0, 255, 200, 0.5); /* Add subtle glow */
 }}
 
 /* Set dynamic background image/animation */
 [data-testid="stAppViewContainer"] > .main {{
-    background: {f"url({USER_SETTINGS['bg_image']})" if USER_SETTINGS['bg_image'] and USER_SETTINGS['bg_image'] != 'uploaded' else 'linear-gradient(145deg, #e4e7ff, #f0f2f6)'};
+    background: {f"url({USER_SETTINGS['bg_image']})" if USER_SETTINGS['bg_image'] and USER_SETTINGS['bg_image'] != 'uploaded' else DEEP_BG}; /* Use deep dark bg or image */
     background-size: cover;
     background-attachment: fixed;
-    color: #1e1e1e;
+    color: #ffffff; /* Ensure text color is white on dark background */
 }}
 
 /* Custom styling for the navbar title */
@@ -2295,13 +2438,13 @@ html, body, [data-testid="stAppViewContainer"] {{
 
 /* 🚀 AGGRESSIVE FULL-WIDTH AND CENTER ALIGNMENT FIXES */
 [data-testid="stAppViewContainer"] > .main {{
-    padding: 0px !important;
-    margin: 0 auto !important;
+    padding: 0px !important;
+    margin: 0 auto !important;
 }}
 .main > div {{
-    max-width: 100% !important; 
-    margin: 0 auto !important;
-    padding: 1rem 1rem !important; 
+    max-width: 100% !important; 
+    margin: 0 auto !important;
+    padding: 1rem 1rem !important; 
 }}
 
 </style>
@@ -2440,14 +2583,15 @@ with tab_dashboard:
     # Weather data update logic (handled here to persist state on rerun)
     if st.session_state.get("weather_settings_update", True):
         st.session_state["weather_data"] = get_weather(USER_SETTINGS.get("weather_city", "Prayagraj"))
-        st.session_state["weather_settings_update"] = False
+    st.session_state["weather_settings_update"] = False
 
     weather_data = st.session_state.get("weather_data")
     hint_text = spend_mood_hint(weather_data)
+    # Applied dark theme styling to the hint box
     st.markdown(
         f"""
-    <div style="background-color: #f0f2f6; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid {USER_SETTINGS['theme_color']}; color: #1e1e1e;">
-    	<span style="font-weight: bold; color: {USER_SETTINGS['theme_color']};">🌤️ Spending Mood Hint:</span> {hint_text}
+    <div style="background-color: {DARK_CARD_BG}; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid {ACCENT_PURPLE}; color: #ffffff; box-shadow: 0 0 10px {ACCENT_PURPLE}40;">
+    	<span style="font-weight: bold; color: {ACCENT_CYAN};">🌤️ Spending Mood Hint:</span> {hint_text}
     </div>
     """,
         unsafe_allow_html=True,
@@ -2544,14 +2688,10 @@ with tab_dashboard:
             full_range = pd.date_range(start=date.today(), end=st.session_state["goal_date"], freq='D')
             target_df = pd.DataFrame(index=full_range)
             
-            # FIX 1: Correctly calculate Required Cumulative Progress using Pandas Series Accessor .dt.days
-            
             # 1. Scalar calculations
             total_remaining_target = st.session_state["goal_target"] - st.session_state["goal_current"]
 
             # 2. Get the time difference Series (Series of Timedeltas)
-            # The calculation (st.session_state["goal_date"] - date.today()) is a scalar timedelta (handled by days_to_go)
-            # FIX: Explicitly convert the NumPy array result to a Pandas Series
             time_diff_series = pd.Series(target_df.index.date - date.today())
             
             # 3. Use .dt.days to get a Series of integer days (This fixes the Attribute Error)
@@ -2577,7 +2717,7 @@ with tab_dashboard:
                 y=plot_data['Cumulative_Saving'], 
                 mode='lines', 
                 name='Actual Progress',
-                line=dict(color='#6a5acd', width=3)
+                line=dict(color=ACCENT_CYAN, width=3) # Use Accent Cyan
             ))
 
             # Add required cumulative savings (Required Path)
@@ -2586,7 +2726,7 @@ with tab_dashboard:
                 y=target_df['Required_Cumulative'], 
                 mode='lines', 
                 name='Required Path',
-                line=dict(color='#8a2be2', dash='dot', width=2)
+                line=dict(color=ACCENT_PURPLE, dash='dot', width=2) # Use Accent Purple
             ))
             
             # Add target marker
@@ -2594,14 +2734,18 @@ with tab_dashboard:
                 x=st.session_state["goal_date"], y=st.session_state["goal_target"],
                 text=f"🎯 Target: {money(st.session_state['goal_target'])}",
                 showarrow=True, arrowhead=1, ax=-50, ay=-30,
-                font=dict(color="#8a2be2", size=14)
+                font=dict(color=ACCENT_PURPLE, size=14) # Use Accent Purple
             )
 
+            # Force dark theme layout
             fig_goal.update_layout(
                 title=f"Savings Goal Progress: {money(remaining_target)} Remaining",
                 xaxis_title="Date",
                 yaxis_title="Cumulative Saved (₹)",
                 template="plotly_dark",
+                paper_bgcolor=DARK_CARD_BG,
+                plot_bgcolor=DARK_CARD_BG,
+                font_color="#ffffff",
                 height=450,
                 hovermode="x unified"
             )
@@ -2611,9 +2755,49 @@ with tab_dashboard:
 
     # --- Health Score + Budgets ---
     st.markdown("---")
-    top_left_col, top_mid_col, top_right_col = st.columns([1.2, 1.5, 2])
+    
+    # ----------------------------------------------------------------------------------
+    # 💥 NEW LAYOUT IMPLEMENTATION: Horizontal Scrolling Metrics (REPLACES 3-COLUMN METRICS)
+    # ----------------------------------------------------------------------------------
+    st.header("Quick Financial Overview")
+    
+    total_income = view[view["type"] == "income"]["amount"].sum() if not view.empty else 0
+    total_expense = view[view["type"] == "expense"]["amount"].sum() if not view.empty else 0
+    net = total_income - total_expense
+    avg_per = tmp.groupby("period")["amount"].sum().mean() if not tmp.empty else 0
+    
+    metric_data = [
+        ("Total Income", money(total_income), ACCENT_CYAN),
+        ("Total Expense", money(total_expense), "#ef4444"),
+        ("Net Savings", money(net), "#22c55e"),
+        (f"Avg {group_period}", money(avg_per), ACCENT_PURPLE),
+    ]
 
-    with top_left_col:
+    # Start the custom horizontal scrolling container
+    st.markdown('<div class="scroll-container">', unsafe_allow_html=True)
+
+    # Render each metric as a custom card inside the scroll container
+    for label, value, color in metric_data:
+        # Use an f-string to embed the metric data and custom color styling
+        st.markdown(
+            f"""
+            <div class="scroll-item-custom" style="border-left: 5px solid {color};">
+                <p style="color:#aaa; margin:0; font-size: 14px;">{label}</p>
+                <h3 style="color:{color}; margin-top:5px; margin-bottom:0; text-shadow: 0 0 5px {color}60;">{value}</h3>
+                <p style="color:#666; margin-top:10px; font-size:12px;">Data from {start} to {end}</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # End the custom horizontal scrolling container
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # --- Health Score and Budget Mini-Cards ---
+    st.markdown("---")
+    top_mid_col, top_right_col = st.columns([1.5, 2]) # Re-use the right 2/3rds space
+
+    with top_mid_col:
         current_budgets = st.session_state["global_budgets"].get(CURRENT_USER_ID, {})
         budget_allocation = auto_allocate_budget(df_local, savings_target_pct=0.15)
         updated_budget, apply_save = budget_bot_minicard(budget_allocation)
@@ -2625,22 +2809,6 @@ with tab_dashboard:
         current_budgets = st.session_state["global_budgets"].get(CURRENT_USER_ID, {})
         curr_ns, longest_ns = no_spend_streak(df_local)
         display_badges(curr_ns)
-
-    with top_mid_col:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        m1, m2, m3, m4 = st.columns(4)
-        total_income = view[view["type"] == "income"]["amount"].sum() if not view.empty else 0
-        total_expense = view[view["type"] == "expense"]["amount"].sum() if not view.empty else 0
-        net = total_income - total_expense
-        if not tmp.empty:
-            avg_per = tmp.groupby("period")["amount"].sum().mean()
-        else:
-            avg_per = 0
-        m1.metric("Total Income", money(total_income))
-        m2.metric("Total Expense", money(total_expense))
-        m3.metric("Net", money(net))
-        m4.metric(f"Avg {group_period}", money(avg_per))
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with top_right_col:
         health_score_data = compute_fin_health_score(df_local, budgets=current_budgets)
@@ -2666,6 +2834,7 @@ with tab_dashboard:
                         st.write(f"• **{cat}** over by **{money(spent - limit)}** (Spent {money(spent)} / Budget {money(limit)})")
         except Exception:
             pass
+    # ----------------------------------------------------------------------------------
 
     # --- Saving Streak ---
     st.markdown("---")
@@ -2742,11 +2911,20 @@ with tab_dashboard:
             x="day",
             y="net_saving",
             color="hit",
-            color_discrete_map={"Hit": "#6a5acd", "Miss": "#ef4444"},
+            color_discrete_map={"Hit": ACCENT_CYAN, "Miss": "#ef4444"}, # Use Accent Cyan
             title=f"Net saving (last {lookback} days)",
             labels={"day": "Day", "net_saving": "₹"},
         )
-        fig_streak.update_layout(height=260, showlegend=True, legend_title="", template="plotly_dark")
+        # Force dark theme layout
+        fig_streak.update_layout(
+            height=260, 
+            showlegend=True, 
+            legend_title="", 
+            template="plotly_dark",
+            paper_bgcolor=DARK_CARD_BG,
+            plot_bgcolor=DARK_CARD_BG,
+            font_color="#ffffff"
+        )
         st.plotly_chart(fig_streak, use_container_width=True, config={"displayModeBar": False}, key="streak_chart_1")
     else:
         st.info("No transactions in the current date range to compute a streak.")
@@ -2840,18 +3018,19 @@ with tab_dashboard:
 
         bucket_total = DB.piggy_balance(CURRENT_USER_ID, "collection")
         st.markdown(
-            f"*Bucket total (Income):* <span style='font-weight:700'>{money(bucket_total)}</span>",
+            f"*Bucket total (Income):* <span style='font-weight:700; color:{ACCENT_CYAN}'>{money(bucket_total)}</span>", # Neon color
             unsafe_allow_html=True,
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
     with right_col:
         st.subheader("💡 Personal Virtual Financial Advisor (VFA)")
+        # Applied dark theme styling to the VFA box
         st.markdown(
             f"""
-            <div class="callout-box-vfa" style="background: {USER_SETTINGS['theme_color']};">
-                <span class="animated-arrow-vfa">➡️</span>
-                <span>Your VFA has new insights!</span>
+            <div class="callout-box-vfa" style="background: {DARK_CARD_BG}; border-left: 5px solid {ACCENT_PURPLE}; box-shadow: 0 0 10px {ACCENT_PURPLE}40; padding:15px; border-radius:10px; margin-bottom:15px;">
+                <span class="animated-arrow-vfa" style="color:{ACCENT_CYAN};">➡️</span>
+                <span style="color:#ffffff;">Your VFA has new insights!</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -2919,11 +3098,12 @@ with tab_dashboard:
                 except Exception as e:
                     st.session_state[tip_key] = f"❌ **AI Tip Generation Error:** {e}"
 
+            # Applied dark theme styling to the bot tip box
             st.markdown(
                 f"""
-                <div class='bot' style='border-left: 5px solid {USER_SETTINGS['theme_color']};'>
-                    <span style='font-weight: bold;'>Your personalized insights:</span>
-                    {st.session_state[tip_key]}
+                <div class='bot' style='border-left: 5px solid {ACCENT_CYAN}; background: {DARK_CARD_BG}; padding:15px; border-radius:10px; margin-bottom:15px; box-shadow: 0 0 10px {ACCENT_CYAN}40;'>
+                    <span style='font-weight: bold; color:{ACCENT_CYAN};'>Your personalized insights:</span>
+                    <p style='color:#ffffff; margin-top:5px;'>{st.session_state[tip_key]}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -2966,7 +3146,11 @@ with tab_dashboard:
             if speaker == "You":
                 st.markdown(f"*You:* {msg}")
             else:
-                st.markdown(f"<div class='chat-bubble ai'>{msg}</div>", unsafe_allow_html=True) # Used chat-bubble for consistency
+                # Applied dark theme styling to chat bubble
+                st.markdown(
+                    f"<div class='chat-bubble ai' style='background:{DARK_CARD_BG}; border: 1px solid {ACCENT_PURPLE}40; padding:10px; border-radius:10px; margin:5px 0; color:#ffffff;'>{msg}</div>", 
+                    unsafe_allow_html=True
+                ) 
 
         # --- Smart Machine (Voice Coach) — Bilingual ---
         st.markdown("---")
@@ -3034,19 +3218,20 @@ with tab_dashboard:
                 title=f"Income Allocation (Net Savings) {title_suffix}",
                 hole=0.65,
                 color='Rate',
-                color_discrete_map={'Savings Rate': '#22c55e', 'Expense Rate': '#e0e0e0'}
+                color_discrete_map={'Savings Rate': ACCENT_CYAN, 'Expense Rate': '#e0e0e0'} # Use Accent Cyan
             )
             
             fig_donut.update_traces(
                 textinfo='percent',  
                 hoverinfo='label+percent+value',
-                marker=dict(line=dict(color='#ffffff', width=2))
+                marker=dict(line=dict(color=DARK_CARD_BG, width=2))
             )
-            # Use contrasting background/paper colors for visibility
+            # Force dark theme layout
             fig_donut.update_layout(
-                template="plotly_white",  
-                paper_bgcolor='#ffffff',  
-                plot_bgcolor='#ffffff',  
+                template="plotly_dark",  
+                paper_bgcolor=DARK_CARD_BG,  
+                plot_bgcolor=DARK_CARD_BG,  
+                font_color="#ffffff",
                 height=380,  
                 showlegend=True,  
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2),
@@ -3084,7 +3269,7 @@ with tab_dashboard:
                     x=monthly_net.index, y=monthly_net['income'], 
                     mode='lines', name='Income', 
                     fill='tozeroy', fillcolor='rgba(34, 197, 94, 0.5)', # Green
-                    line=dict(color='#22c55e', width=2),
+                    line=dict(color=ACCENT_CYAN, width=2), # Use Accent Cyan
                     stackgroup='one'
                 ))
 
@@ -3097,13 +3282,15 @@ with tab_dashboard:
                     stackgroup='one'
                 ))
 
+                # Force dark theme layout
                 fig_cashflow.update_layout(
                     title='Income vs. Expenses Over Time',
                     xaxis_title="Month",
                     yaxis_title="Amount (₹)",
-                    template="plotly_white", # Use plotly_white for light background
-                    paper_bgcolor='#ffffff', 
-                    plot_bgcolor='#ffffff', 
+                    template="plotly_dark", # Force dark theme
+                    paper_bgcolor=DARK_CARD_BG, 
+                    plot_bgcolor=DARK_CARD_BG, 
+                    font_color="#ffffff",
                     height=380,
                     legend=dict(orientation="h", yanchor="top", y=1.1, xanchor="left", x=0),
                     margin=dict(l=0,r=0,t=40,b=0)
@@ -3145,10 +3332,12 @@ with tab_dashboard:
                 title='Risk (Volatility) vs. Expected Return (%)'
             )
             
+            # Force dark theme layout
             fig_risk_return.update_layout(
-                template="plotly_white",
-                paper_bgcolor='#ffffff', 
-                plot_bgcolor='#ffffff', 
+                template="plotly_dark",
+                paper_bgcolor=DARK_CARD_BG, 
+                plot_bgcolor=DARK_CARD_BG, 
+                font_color="#ffffff",
                 height=380,
                 xaxis=dict(range=[0, 10], dtick=2),
                 yaxis=dict(range=[0, 20], dtick=4),
@@ -3180,7 +3369,7 @@ with tab_dashboard:
             simulated_values = [
                 np.random.randint(20000, 150000), 
                 np.random.randint(10000, 35000),  
-                np.random.randint(5000, 50000),    
+                np.random.randint(5000, 50000),   
                 np.random.randint(50000, 180000), 
                 np.random.randint(30000, 100000), 
             ]
@@ -3199,12 +3388,13 @@ with tab_dashboard:
                 theta=tax_df['Section'].tolist() + [tax_df['Section'].tolist()[0]],
                 fill='toself',
                 name='Savings Contribution',
-                marker_color='rgba(138, 43, 226, 0.7)',
-                line_color='rgba(138, 43, 226, 1)',
+                marker_color=ACCENT_PURPLE, # Use Accent Purple
+                line_color=ACCENT_PURPLE,
                 hoverinfo='text',
                 text=[f'{s}: {money(v)}' for s, v in zip(tax_sections, simulated_values)]
             ))
 
+            # Force dark theme layout
             fig_tax.update_layout(
                 polar=dict(
                     radialaxis=dict(
@@ -3221,9 +3411,10 @@ with tab_dashboard:
                     )
                 ),
                 showlegend=False,
-                template="plotly_white",
-                paper_bgcolor='#ffffff', 
-                plot_bgcolor='#ffffff',
+                template="plotly_dark",
+                paper_bgcolor=DARK_CARD_BG, 
+                plot_bgcolor=DARK_CARD_BG,
+                font_color="#ffffff",
                 height=380,
                 title="Tax Savings Breakdown (Simulated)",
                 margin=dict(l=0,r=0,t=40,b=0)
@@ -3262,12 +3453,16 @@ with tab_dashboard:
                     data=[go.Bar(
                         x=summary_df["Metric"],
                         y=summary_df["Value"],
-                        marker_color=["#6a5acd", "#ef4444", "#22c55e"]
+                        marker_color=[ACCENT_PURPLE, "#ef4444", ACCENT_CYAN] # Use Accents
                     )]
                 )
+                # Force dark theme layout
                 fig_report.update_layout(
                     title=f"KPIs for {CURRENT_USER_ID}",
                     template="plotly_dark",
+                    paper_bgcolor=DARK_CARD_BG,
+                    plot_bgcolor=DARK_CARD_BG,
+                    font_color="#ffffff",
                     height=300
                 )
 
@@ -3340,9 +3535,9 @@ with tab_stock:
         if daily_df is not None and 'SMA_Short' in daily_df.columns:
             st.markdown("#### Moving Average Crossover (10-day vs 30-day SMA)")
             fig_sma = go.Figure()
-            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['Close Price (₹)'], mode='lines', name='Close Price', line=dict(color='#6a5acd', width=1.5)))
-            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['SMA_Short'], mode='lines', name='10-Day SMA', line=dict(color='#ef4444', width=2)))
-            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['SMA_Long'], mode='lines', name='30-Day SMA', line=dict(color='#22c55e', width=2)))
+            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['Close Price (₹)'], mode='lines', name='Close Price', line=dict(color='#cccccc', width=1.5)))
+            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['SMA_Short'], mode='lines', name='10-Day SMA', line=dict(color=ACCENT_CYAN, width=2))) # Use Accent
+            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['SMA_Long'], mode='lines', name='30-Day SMA', line=dict(color=ACCENT_PURPLE, width=2))) # Use Accent
             
             # Highlight Buy/Sell signals (Simplified)
             # Find crossover points (buy when short crosses above long, sell when short crosses below long)
@@ -3356,7 +3551,7 @@ with tab_stock:
                 x=buy_signals.index,
                 y=buy_signals['SMA_Short'],
                 mode='markers',
-                marker=dict(symbol='triangle-up', size=10, color='#22c55e'),
+                marker=dict(symbol='triangle-up', size=10, color=ACCENT_CYAN), # Use Accent
                 name='Buy Signal'
             ))
             fig_sma.add_trace(go.Scatter(
@@ -3367,7 +3562,15 @@ with tab_stock:
                 name='Sell Signal'
             ))
 
-            fig_sma.update_layout(title=f"SMA Crossover for {symbol}", template="plotly_dark", height=450)
+            # Force dark theme layout
+            fig_sma.update_layout(
+                title=f"SMA Crossover for {symbol}", 
+                template="plotly_dark", 
+                paper_bgcolor=DARK_CARD_BG,
+                plot_bgcolor=DARK_CARD_BG,
+                font_color="#ffffff",
+                height=450
+            )
             st.plotly_chart(fig_sma, use_container_width=True)
             st.caption("Simplified technical analysis: Buy signal (green up triangle) when the fast SMA (pink/red) crosses above the slow SMA (green).")
 
@@ -3383,8 +3586,16 @@ with tab_stock:
                     y="Close Price (₹)",
                     title=f"Price Trend for {symbol}",
                     labels={"Close Price (₹)": "Price (₹)", "Date": "Date"},
+                    color_discrete_sequence=['#cccccc'],
                 )
-                fig_line.update_layout(template="plotly_dark", height=400)
+                # Force dark theme layout
+                fig_line.update_layout(
+                    template="plotly_dark", 
+                    paper_bgcolor=DARK_CARD_BG,
+                    plot_bgcolor=DARK_CARD_BG,
+                    font_color="#ffffff",
+                    height=400
+                )
                 st.plotly_chart(fig_line, use_container_width=True)
             else:
                 st.info("Historical data not available.")
@@ -3406,7 +3617,15 @@ with tab_stock:
                 color_discrete_sequence=px.colors.sequential.RdPu,
             )
             fig_donut.update_traces(textinfo="percent+label")
-            fig_donut.update_layout(template="plotly_dark", height=400, showlegend=False)
+            # Force dark theme layout
+            fig_donut.update_layout(
+                template="plotly_dark", 
+                paper_bgcolor=DARK_CARD_BG,
+                plot_bgcolor=DARK_CARD_BG,
+                font_color="#ffffff",
+                height=400, 
+                showlegend=False
+            )
             st.plotly_chart(fig_donut, use_container_width=True)
 
         st.markdown("---")
@@ -3418,9 +3637,16 @@ with tab_stock:
                 y="Volume",
                 title=f"Daily Volume for {symbol}",
                 labels={"Volume": "Volume", "Date": "Date"},
-                color_discrete_sequence=['#8a2be2']
+                color_discrete_sequence=[ACCENT_PURPLE] # Use Accent
             )
-            fig_bar.update_layout(template="plotly_dark", height=400)
+            # Force dark theme layout
+            fig_bar.update_layout(
+                template="plotly_dark", 
+                paper_bgcolor=DARK_CARD_BG,
+                plot_bgcolor=DARK_CARD_BG,
+                font_color="#ffffff",
+                height=400
+            )
             st.plotly_chart(fig_bar, use_container_width=True)
     else:
         st.info("Enter a stock symbol and click 'Fetch Quote & Charts'.")
@@ -3462,7 +3688,7 @@ with tab_tools:
         )
         
         # 3. Background Image Uploader (Simplified, stores base64/URL if supported)
-        st.caption("3. Background Image (Currently using default gradient)")
+        st.caption("3. Background Image (Currently using default dark background)")
         uploaded_animation = st.file_uploader(
             "Upload Background Image/Animation (GIF, MP4)", 
             type=["gif", "mp4", "jpg", "png"],
