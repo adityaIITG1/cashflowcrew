@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import os
@@ -14,9 +15,6 @@ from datetime import date, datetime, timedelta
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Sequence, Any, Tuple
 
-# === ML/CV/OCR IMPORTS ===
-# Removed unused ML/CV imports for clean login
-
 # === NEW MODULE IMPORTS ===
 from analytics import (
     compute_fin_health_score,
@@ -27,6 +25,14 @@ from analytics import (
 )
 
 import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+import streamlit.components.v1 as components
+from PIL import Image, ImageDraw
+import qrcode
+# Removed local sklearn imports that are not used globally
 
 def _safe_to_date(x) -> date:
     """Return a real python date; fallback to today if x is empty/invalid."""
@@ -44,8 +50,6 @@ from ocr import HAS_TESSERACT # noqa: F401
 from telegram_utils import send_report_png
 # Import Weather helpers
 from weather import get_weather, spend_mood_hint
-# Import Generative Viz helper
-from gen_viz import suggest_infographic_spec, _static_fallback_viz
 # Import Custom UI helpers
 from ui_patches import (
     display_health_score,
@@ -77,16 +81,6 @@ try:
     HAS_OPENAI_SDK = True
 except ImportError:
     HAS_OPENAI_SDK = False
-
-import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-import streamlit as st
-import streamlit.components.v1 as components
-from PIL import Image, ImageDraw
-from sklearn.feature_extraction.text import TfidfVectorizer # noqa: F401
-from sklearn.metrics.pairwise import cosine_similarity         # noqa: F401
-import qrcode
 
 st.set_page_config(page_title="Cash Flow Crew — Personal Finance AI Analyzer", page_icon="📈💰📊", layout="wide")
 # ============================================================
@@ -1365,7 +1359,7 @@ CREDS_PATH = Path("user_creds.json")
 DEFAULT_CREDS = {
     "prakriti11": "pass123",
     "ujjwal11": "secure456",
-    "aditya11": "admin",
+    "aditya01": "vermasingh01", 
     "guest": "guest",
 }
 # Function to load and save credentials
@@ -2245,6 +2239,19 @@ st.markdown(
     --main-theme-color: {USER_SETTINGS['theme_color']};
 }}
 
+/* Custom CSS for Login Card (Kept here for consistent override during reruns) */
+.login-card-container {{
+    max-width: 500px;
+    margin: 50px auto;
+    padding: 30px;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 10px 30px rgba(138, 43, 226, 0.2);
+    border: 1px solid #d4c1f5;
+    animation: slideIn 0.8s ease-out;
+}}
+@keyframes slideIn {{ 0% {{ opacity: 0; transform: translateY(-50px); }} 100% {{ opacity: 1; transform: translateY(0); }} }}
+
 .navbar {{
     background: linear-gradient(90deg, var(--main-theme-color) 0%, #8a2be2 100%) !important;
 }}
@@ -2259,21 +2266,51 @@ st.markdown(
     color: var(--main-theme-color) !important;
 }}
 
-/* ... other CSS rules remain here ... */
+/* Set dynamic background image/animation */
+[data-testid="stAppViewContainer"] > .main {{
+    background: {f"url({USER_SETTINGS['bg_image']})" if USER_SETTINGS['bg_image'] and USER_SETTINGS['bg_image'] != 'uploaded' else 'linear-gradient(145deg, #e4e7ff, #f0f2f6)'};
+    background-size: cover;
+    background-attachment: fixed;
+    color: #1e1e1e;
+}}
+
+/* Custom styling for the navbar title */
+.nav-title-custom {{
+    font-weight: 800;
+    font-size: 24px;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+    animation: bulgeGlow 2s ease-in-out infinite; /* Apply glow/bulge animation */
+}}
+@keyframes bulgeGlow {{
+    0% {{ transform: scale(1.0); text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); }}
+    50% {{ transform: scale(1.03); text-shadow: 0 0 15px rgba(255, 255, 255, 0.8), 0 0 5px var(--main-theme-color); }}
+    100% {{ transform: scale(1.0); text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); }}
+}}
+
+/* General styling overrides for the premium look (from the skeleton) */
+html, body, [data-testid="stAppViewContainer"] {{
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+}}
 
 /* 🚀 AGGRESSIVE FULL-WIDTH AND CENTER ALIGNMENT FIXES */
 [data-testid="stAppViewContainer"] > .main {{
     padding: 0px !important;
     margin: 0 auto !important;
 }}
-/* ... rest of the static CSS ... */
+.main > div {{
+    max-width: 100% !important; 
+    margin: 0 auto !important;
+    padding: 1rem 1rem !important; 
+}}
+
 </style>
 """,
     unsafe_allow_html=True,
 )
 if st.session_state["coin_rain_show"]:
-    # Removed show_coin_rain to integrate animation later, focusing on stability
-    pass
+    # Using the separate show_coin_rain function for animation
+    show_coin_rain(RAIN_DURATION_SEC)
 
 # --- Load data outside of tabs ---
 db_txns = DB.list_txns(CURRENT_USER_ID)
@@ -2313,8 +2350,8 @@ with colA:
       <div class="nav-title-wrap">
         <span class="cashflow-girl">👩‍💰💸</span>
         <div>
-          <div class="nav-title">📈💰📊 Personal Finance AI Dashboard <br> <span style="font-size:18px;">Cashflow Crew ({CURRENT_USER_ID})</span></div>
-          <div class="nav-sub">Visualize expenses, savings & investments — premium, Power BI–style UI</div>
+          <div class="nav-title-custom">Personal Finance AI Dashboard</div>
+          <div class="nav-sub">Cashflow Crew ({CURRENT_USER_ID}) — Visualize expenses, savings & investments</div>
         </div>
       </div>
       <div class="coin-wrap">
@@ -2514,9 +2551,10 @@ with tab_dashboard:
 
             # 2. Get the time difference Series (Series of Timedeltas)
             # The calculation (st.session_state["goal_date"] - date.today()) is a scalar timedelta (handled by days_to_go)
-            time_diff_series = target_df.index.date - date.today()
+            # FIX: Explicitly convert the NumPy array result to a Pandas Series
+            time_diff_series = pd.Series(target_df.index.date - date.today())
             
-            # 3. Use .dt.days to get a Series of integer days
+            # 3. Use .dt.days to get a Series of integer days (This fixes the Attribute Error)
             days_since_start = time_diff_series.dt.days
 
             # 4. Calculate required cumulative progress using Series math (REPLACED LINES 2687-2689)
@@ -2690,7 +2728,7 @@ with tab_dashboard:
 
         with s2:
             st.markdown("Current Streak (Local)")
-            st.markdown(f"<div class='streak-metric'>{local_curr_streak} days</div>", unsafe_allow_html=True)
+            st.markdown(f"<div classt='streak-metric'>{local_curr_streak} days</div>", unsafe_allow_html=True)
 
         with s3:
             st.markdown("Longest Streak (Local)")
@@ -2928,7 +2966,7 @@ with tab_dashboard:
             if speaker == "You":
                 st.markdown(f"*You:* {msg}")
             else:
-                st.markdown(f"<div class='bot'>{msg}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='chat-bubble ai'>{msg}</div>", unsafe_allow_html=True) # Used chat-bubble for consistency
 
         # --- Smart Machine (Voice Coach) — Bilingual ---
         st.markdown("---")
@@ -3425,20 +3463,31 @@ with tab_tools:
         
         # 3. Background Image Uploader (Simplified, stores base64/URL if supported)
         st.caption("3. Background Image (Currently using default gradient)")
-        # In a full solution, this would handle file upload and storage
-        st.info("File upload for BG image requires server persistence; feature disabled for safety.")
+        uploaded_animation = st.file_uploader(
+            "Upload Background Image/Animation (GIF, MP4)", 
+            type=["gif", "mp4", "jpg", "png"],
+            key="animation_upload"
+        )
+        
+        if uploaded_animation:
+            # Placeholder for saving the file and setting the background URL/path
+            st.info(f"Animation '{uploaded_animation.name}' uploaded. Click 'Save Settings' to apply the persistence change.")
+            # In a full solution, you would save this file and store its path/URL in USER_SETTINGS.
+            # For simplicity, we just save the status.
+            st.session_state["user_settings"][CURRENT_USER_ID]["bg_image"] = "uploaded"
         
         # 4. Wake Word Settings (Placeholder, needs browser API)
         st.markdown("#### Voice Command Settings")
-        st.info("Wake word functionality requires browser mic permissions which is unstable in hosted Streamlit. Use 'Speak Now' buttons.")
+        
+        # Logout on Wake Word logic
+        st.info("The 'Bye buddy' logout wake word is implemented via JavaScript; ensure the 'Speak now' button works, but browser limitations may prevent true background listening in Streamlit Cloud.")
         
         if st.button("💾 Save Settings", use_container_width=True, key="save_settings_btn"):
             # Update session state settings
             st.session_state["user_settings"][CURRENT_USER_ID]["theme_color"] = new_theme_color
             st.session_state["user_settings"][CURRENT_USER_ID]["promise"] = new_promise
             
-            # Note: For simplicity, user settings are stored in session state. 
-            # In a real app, you would save USER_SETTINGS to your database/json file here.
+            # In a real app, save USER_SETTINGS to your database/json file here.
             
             st.success("✅ Settings saved! Rerunning app to apply style changes...")
             st.rerun()
