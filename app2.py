@@ -110,7 +110,7 @@ h1, h2, h3, h4, h5, h6, label {{
     color: #ffffff !important;
 }}
 
-/* ---------------- 2. CARD COMPONENT OVERRIDES (GLASS/GLOW) ---------------- */
+/* ---------------- 2. CARD COMPONENT OVERRIDES (SIMPLE DARK CARD) ---------------- */
 
 /* TARGET 1: Containers holding st.metric, st.dataframe, or st.plotly_chart */
 div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stMetric"]),
@@ -121,21 +121,18 @@ div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {{ /* T
     padding: 25px;
     border-radius: 16px; 
     margin-bottom: 20px;
-    
-    /* THE GLOW EFFECT - Multi-layered shadows */
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.6), /* Deep central shadow */
-    0 0 15px rgba(147, 51, 234, 0.4); /* Neon Purple Glow */
-    border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle white border */
+    /* SIMPLE SHADOW for depth and clean look */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); 
+    border: 1px solid rgba(255, 255, 255, 0.1); 
 }}
 
-/* TARGET 2: Apply Glassmorphism to select elements for depth */
+/* TARGET 2: Remove complex glassmorphism for performance */
 div[data-testid*="stVerticalBlock"] > div:has(div.stPlotlyChart),
 div[data-testid="stVerticalBlockBorder"] {{
-    background-color: rgba(31, 31, 31, 0.8); /* Semi-transparent background */
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    /* Adjust glow to be softer/more luminous here */
-    box-shadow: 0 0 20px rgba(147, 51, 234, 0.4); 
+    background-color: {DARK_CARD_BG}; /* Set to solid card background for speed */
+    backdrop-filter: none; /* REMOVED EXPENSIVE BLUR */
+    -webkit-backdrop-filter: none; /* REMOVED EXPENSIVE BLUR */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); 
 }}
 
 
@@ -146,7 +143,7 @@ div[data-testid="stMetricValue"] {{
     color: {ACCENT_CYAN}; /* Bright Neon Cyan/Green */
     font-size: 2.5rem;
     font-weight: 800;
-    text-shadow: 0 0 8px rgba(0, 255, 200, 0.4); 
+    text-shadow: 0 0 8px rgba(0, 255, 200, 0.1); /* Reduced glow for speed */
 }}
 
 /* Input Field Overrides for Dark Mode */
@@ -166,7 +163,7 @@ div[data-testid="stTextInput"] > div > div > input:focus,
 div[data-testid="stNumberInput"] > div > div > input:focus,
 div[data-testid="stSelectbox"] button:focus {{
     border-color: {ACCENT_CYAN} !important; /* Bright cyan border on focus */
-    box-shadow: 0 0 10px rgba(0, 255, 200, 0.6) !important; /* Strong Neon Glow */
+    box-shadow: 0 0 5px rgba(0, 255, 200, 0.4) !important; /* Reduced Strong Neon Glow */
     outline: none; 
 }}
 
@@ -183,7 +180,7 @@ div[data-testid="stSelectbox"] button:focus {{
     background-color: {DARK_CARD_BG};
     padding: 25px;
     border-radius: 16px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.6), 0 0 8px rgba(147, 51, 234, 0.2);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); /* Simple shadow for speed */
 }}
 .scroll-item-custom p {{
     color: #ffffff; /* Ensure text is visible */
@@ -2667,7 +2664,9 @@ html, body, [data-testid="stAppViewContainer"] {{
 )
 if st.session_state["coin_rain_show"]:
     # Using the separate show_coin_rain function for animation
-    show_coin_rain(RAIN_DURATION_SEC)
+    # TEMPORARILY DISABLED for speed:
+    # show_coin_rain(RAIN_DURATION_SEC)
+    pass
 
 # --- Load data outside of tabs ---
 db_txns = DB.list_txns(CURRENT_USER_ID)
