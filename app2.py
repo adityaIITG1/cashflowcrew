@@ -89,6 +89,7 @@ DEEP_BG = "#121212"
 
 
 # --- AGGRESSIVE CUSTOM CSS FOR DARK MODE / GLOWING CARDS ---
+# FINAL PHASE SIMPLIFICATION: Removing complex shadows and animations for speed.
 CUSTOM_QCLAY_CSS = f"""
 <style>
 /* ---------------- 1. GLOBAL & BASE STYLES (QCLAY DARK) ---------------- */
@@ -110,29 +111,29 @@ h1, h2, h3, h4, h5, h6, label {{
     color: #ffffff !important;
 }}
 
-/* ---------------- 2. CARD COMPONENT OVERRIDES (SIMPLE DARK CARD) ---------------- */
+/* ---------------- 2. CARD COMPONENT OVERRIDES (SIMPLE DARK CARD - FAST) ---------------- */
 
 /* TARGET 1: Containers holding st.metric, st.dataframe, or st.plotly_chart */
 div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stMetric"]),
 div[data-testid*="stVerticalBlock"] > div:has(div.stPlotlyChart),
 div[data-testid*="stVerticalBlock"] > div:has(div.stDataFrame),
-div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {{ /* Target form containers for card look */
+div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {{
     background-color: {DARK_CARD_BG};
     padding: 25px;
     border-radius: 16px; 
     margin-bottom: 20px;
-    /* SIMPLE SHADOW for depth and clean look */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); 
+    /* Reduced shadow complexity */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); 
     border: 1px solid rgba(255, 255, 255, 0.1); 
 }}
 
-/* TARGET 2: Remove complex glassmorphism for performance */
+/* TARGET 2: Remove transparency/blur/heavy shadow from nested components */
 div[data-testid*="stVerticalBlock"] > div:has(div.stPlotlyChart),
 div[data-testid="stVerticalBlockBorder"] {{
-    background-color: {DARK_CARD_BG}; /* Set to solid card background for speed */
-    backdrop-filter: none; /* REMOVED EXPENSIVE BLUR */
-    -webkit-backdrop-filter: none; /* REMOVED EXPENSIVE BLUR */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); 
+    background-color: {DARK_CARD_BG};
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); 
 }}
 
 
@@ -140,53 +141,53 @@ div[data-testid="stVerticalBlockBorder"] {{
 
 /* Metric Value (The large numbers) */
 div[data-testid="stMetricValue"] {{
-    color: {ACCENT_CYAN}; /* Bright Neon Cyan/Green */
+    color: {ACCENT_CYAN};
     font-size: 2.5rem;
     font-weight: 800;
-    text-shadow: 0 0 8px rgba(0, 255, 200, 0.1); /* Reduced glow for speed */
+    text-shadow: none; /* REMOVED EXPENSIVE TEXT SHADOW/GLOW */
 }}
 
 /* Input Field Overrides for Dark Mode */
 div[data-testid="stTextInput"] > div > div > input,
 div[data-testid="stNumberInput"] > div > div > input,
 div[data-testid="stSelectbox"] button {{
-    background-color: {DEEP_BG} !important; /* Deeper background for input fields */
-    border: 1px solid rgba(147, 51, 234, 0.3); /* Subtle purple border */
+    background-color: {DEEP_BG} !important;
+    border: 1px solid rgba(147, 51, 234, 0.3);
     border-radius: 8px;
     color: #ffffff;
     padding: 10px;
     box-shadow: none !important; 
     transition: all 0.2s ease-in-out;
 }}
-/* Input Focus Effect (The Neon Glow) */
+/* Input Focus Effect (Simple Glow) */
 div[data-testid="stTextInput"] > div > div > input:focus,
 div[data-testid="stNumberInput"] > div > div > input:focus,
 div[data-testid="stSelectbox"] button:focus {{
-    border-color: {ACCENT_CYAN} !important; /* Bright cyan border on focus */
-    box-shadow: 0 0 5px rgba(0, 255, 200, 0.4) !important; /* Reduced Strong Neon Glow */
+    border-color: {ACCENT_CYAN} !important;
+    box-shadow: 0 0 5px rgba(0, 255, 200, 0.4) !important;
     outline: none; 
 }}
 
 /* ---------------- 4. HORIZONTAL SCROLL CARDS (New Layout) ---------------- */
 .scroll-container {{
     display: flex;
-    overflow-x: auto; /* Enable horizontal scrolling */
+    overflow-x: auto; 
     gap: 20px; 
-    padding: 20px 0; /* Padding for the scrollbar and spacing */
+    padding: 20px 0;
 }}
 .scroll-item-custom {{
-    flex: 0 0 250px; /* Fixed width for each card */
+    flex: 0 0 250px;
     min-width: 250px;
     background-color: {DARK_CARD_BG};
     padding: 25px;
     border-radius: 16px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); /* Simple shadow for speed */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4); 
 }}
 .scroll-item-custom p {{
-    color: #ffffff; /* Ensure text is visible */
+    color: #ffffff;
 }}
 .scroll-item-custom h3 {{
-    color: {ACCENT_CYAN}; /* Neon color for metrics */
+    color: {ACCENT_CYAN};
 }}
 </style>
 """
@@ -1529,39 +1530,32 @@ GEMINI_ENABLED_STATUS = "Gemini 2.5 Flash, OpenAI GPT-3.5-Turbo (Fallback)"
 ALL_TECHNOLOGIES = "Streamlit, Pandas, NumPy, Plotly, Gemini SDK, OpenAI SDK, OCR (Tesseract), ETL/Data Analytics, Time Series (ETS/SMA), Joblib, MiniDB"
 PROMISE_TEXT = "I will not let your single penny waste use me"
 
-# --- 1. DYNAMIC HEADER CSS (UPDATED) ---
+# --- 1. DYNAMIC HEADER CSS (UPDATED FOR SPEED) ---
 DYNAMIC_HEADER_CSS = f"""
 <style>
-/* ---------------- DYNAMIC HEADER STYLES ---------------- */
+/* ---------------- DYNAMIC HEADER STYLES (SIMPLIFIED FOR PERFORMANCE) ---------------- */
 .dynamic-header-container {{
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    z-index: 99999; /* Ensure it stays above everything */
+    z-index: 99999;
     padding: 10px 20px;
     margin: 0;
-    transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Smooth transition for hover */
     
-    /* Neon background and glow */
+    /* Neon background (solid for speed) */
     background: linear-gradient(90deg, {ACCENT_PURPLE} 0%, #8a2be2 100%);
-    box-shadow: 0 0 25px rgba(147, 51, 234, 0.9);
+    box-shadow: 0 0 10px rgba(147, 51, 234, 0.7); /* Reduced glow */
     border-bottom: 2px solid {ACCENT_CYAN};
     
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 100px; /* Increased height for content */
+    height: 100px;
 }}
 
-/* Hover Effects: Glow, Zoom Out */
-.dynamic-header-container:hover {{
-    box-shadow: 0 0 50px {ACCENT_PURPLE}, 0 0 20px {ACCENT_CYAN}; /* Stronger dual glow */
-    transform: scale(0.98); /* Slight zoom-out effect */
-    cursor: default;
-}}
+/* Removed hover animations on container */
 
-/* Header Content Alignment */
 .header-content {{
     display: flex;
     flex-direction: column;
@@ -1576,7 +1570,7 @@ DYNAMIC_HEADER_CSS = f"""
     font-weight: 900;
     color: #ffffff;
     letter-spacing: 1px;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    text-shadow: none; /* REMOVED EXPENSIVE TEXT SHADOW */
     margin-bottom: 5px;
 }}
 
@@ -1592,71 +1586,34 @@ DYNAMIC_HEADER_CSS = f"""
     text-overflow: ellipsis;
 }}
 
-/* Money Promise Animation Styling */
+/* Money Promise Styling (Static for speed) */
 .money-promise-wrap {{
     margin-top: 5px;
     font-size: 14px;
     font-weight: 700;
     color: {ACCENT_CYAN};
-    text-shadow: 0 0 5px {ACCENT_CYAN}90;
+    text-shadow: none; /* REMOVED EXPENSIVE TEXT SHADOW/GLOW */
     white-space: nowrap;
 }}
 
-@keyframes jump-in {{
-    0% {{ opacity: 0; transform: translateY(20px) scale(0.5); }}
-    100% {{ opacity: 1; transform: translateY(0) scale(1.0); }}
-}}
-
-/* Right-side elements: Brain, Robot, Flag/Chatbot */
-.header-right {{
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    margin-left: 20px;
-}}
-
-/* Rotating Glowing Brain */
+/* STATIC ICONS - REMOVED ROTATION AND PULSE ANIMATION */
 .rotating-brain {{
     font-size: 40px;
-    filter: drop-shadow(0 0 10px yellow);
-    animation: rotate-glow 5s linear infinite, brain-pulse 2s ease-in-out infinite;
-}}
-@keyframes rotate-glow {{
-    0% {{ transform: rotate(0deg) scale(1.0); }}
-    100% {{ transform: rotate(360deg) scale(1.0); }}
-}}
-@keyframes brain-pulse {{
-    0%, 100% {{ filter: drop-shadow(0 0 10px yellow); }}
-    50% {{ filter: drop-shadow(0 0 20px yellow) drop-shadow(0 0 5px orange); }}
+    filter: drop-shadow(0 0 5px yellow);
+    animation: none;
 }}
 
-/* Flag and Chatbot */
-.made-in-india-text {{
-    font-size: 14px;
-    color: #fff;
-    font-weight: 600;
-}}
-.chatbot-prakriti {{
-    font-size: 35px;
-    position: relative;
-    cursor: pointer;
-    transition: transform 0.3s;
-}}
-.chatbot-prakriti:hover {{
-    transform: scale(1.1);
-}}
-
-/* Hand Flickering/Waving */
+/* Hand Waving Animation simplified/removed */
 .chatbot-prakriti .hand {{
     font-size: 35px;
-    opacity: 0.9;
-    animation: hand-wave 1s ease-in-out infinite alternate;
+    opacity: 1.0;
+    animation: none; /* REMOVED EXPENSIVE HAND WAVE ANIMATION */
 }}
-@keyframes hand-wave {{
-    0% {{ transform: rotate(0deg); }}
-    100% {{ transform: rotate(15deg); }}
+@keyframes jump-in, @keyframes rotate-glow, @keyframes brain-pulse, @keyframes hand-wave {{
+    /* Ensure all custom animations are inactive or removed */
+    0% {{ transform: none; }}
+    100% {{ transform: none; }}
 }}
-
 
 /* Override Streamlit's main content area to compensate for the fixed header */
 [data-testid="stAppViewContainer"] > .main {{
@@ -1666,7 +1623,7 @@ DYNAMIC_HEADER_CSS = f"""
 </style>
 """
 
-# --- 2. DYNAMIC HEADER HTML (with placeholders for JS animation) ---
+# --- 2. DYNAMIC HEADER HTML (STATIC TEXT) ---
 DYNAMIC_HEADER_HTML = f"""
 <div class="dynamic-header-container">
     <div class="header-content">
@@ -1675,7 +1632,7 @@ DYNAMIC_HEADER_HTML = f"""
             <span class="made-in-india-text">({CURRENT_USER_ID_PLACEHOLDER})</span>
         </div>
         <div class="money-promise-wrap" id="promise-text-container">
-            Loading promise...
+            {PROMISE_TEXT}
         </div>
         <div class="header-tech">
             AI Models: **{GEMINI_ENABLED_STATUS}** | Technologies: {ALL_TECHNOLOGIES}
@@ -1689,45 +1646,17 @@ DYNAMIC_HEADER_HTML = f"""
             <div style="font-size: 20px;">🇮🇳</div>
         </div>
         <div class="chatbot-prakriti" onclick="alert('Prakriti AI says: I will not let your single penny waste. Use me!')">
-            <span class="hand">🖐</span>
+            <span class="hand">👋</span>
         </div>
     </div>
 </div>
 """
 
 # --- 3. JAVASCRIPT FOR THE JUMPING TEXT ANIMATION ---
+# REMOVED the complex jumping animation logic. Now only sets the static text.
 JUMPING_TEXT_JS = f"""
 <script>
-// The target text to animate
-const targetText = "{PROMISE_TEXT}";
-const container = document.getElementById('promise-text-container');
-const delayBetweenLoops = 5000; // 5 seconds
-const animationDuration = 800; // 0.8 seconds total for all characters to jump in
-
-function animatePromiseText() {{
-    container.innerHTML = '';
-    let html = '';
-    let charIndex = 0;
-
-    // Split the text into individual characters wrapped in spans
-    targetText.split('').forEach(char => {{
-        const charToDisplay = char === ' ' ? '&nbsp;' : char;
-        // Inject animation properties and stagger the delay
-        html += `<span style="opacity:0; transform: translateY(20px); animation: jump-in 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards; animation-delay: ${{charIndex * (animationDuration / targetText.length)}}s;">${{charToDisplay}}</span>`;
-        charIndex++;
-    }});
-    
-    container.innerHTML = html;
-
-    // After animation finishes, schedule the next loop
-    setTimeout(() => {{
-        // Clear the text and restart the animation after a short pause
-        setTimeout(animatePromiseText, delayBetweenLoops); 
-    }}, animationDuration + 100); 
-}}
-
-// Start the animation loop when the script loads
-animatePromiseText();
+// The target text is now static in the HTML to prevent performance overhead.
 </script>
 """
 
@@ -1829,6 +1758,7 @@ def play_paid_sound(name: str, amount: float) -> None:
 
 def show_coin_rain(seconds: float = 5.0) -> None:
     """Displays the coin rain animation."""
+    # THIS FUNCTION IS NOW DISABLED IN THE MAIN APP BODY FOR PERFORMANCE
     coin_spans = "".join(
         [
             f"<span style='left:{random.randint(5, 95)}%; animation-delay:{random.uniform(0, RAIN_DURATION_SEC/2):.2f}s;'>🪙</span>"
