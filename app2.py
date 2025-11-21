@@ -2152,6 +2152,9 @@ def _login_view() -> None:
 
 img_file = st.camera_input("Take a photo to login")
 
+face_detected_count = 0
+current_face_vector = None
+
 if img_file is not None:
     import numpy as np
     import cv2
@@ -2159,58 +2162,51 @@ if img_file is not None:
     bytes_data = img_file.getvalue()
     img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
 
-    st.image(img, caption="Captured Photo", use_container_width=True)
+    st.image(img, caption="Captured Photo", use_column_width=True)
 
-    # ✅ yaha tumhara face detect / match logic chalega
-    # Example:
+    # Face detect
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.1, 5)
 
-    if len(faces) > 0:
+    face_detected_count = len(faces)
+    current_face_vector = faces  # or embeddings later
+
+    if face_detected_count > 0:
         st.success("Face detected ✅ Now verify user...")
-        # TODO: embedding compare + login set session_state
     else:
         st.error("No face detected ❌ Please try again clearly.")
 
+# Login card
+st.markdown('<div class="login-card-container">', unsafe_allow_html=True)
 
+with st.container():
+    st.markdown('<div class="login-card-inner">', unsafe_allow_html=True)
+    st.subheader("Existing User Login (Face Scan)")
 
-    if ctx.video_processor:
-        face_detected_count = ctx.video_processor.face_detected_count
-        current_face_vector = ctx.video_processor.current_face_vector
+    u_select = st.selectbox("Select Username", options=all_users, key="user_select")
+    target_code = VALID_USERS.get(u_select, "")
+
+    if face_detected_count > 0:
+        st.success("Face detected! Click 'Scan and Login'.")
     else:
-        face_detected_count = 0
-        current_face_vector = ""
+        st.error("No face detected. Please look at the camera.")
 
-    st.markdown('<div class="login-card-container">', unsafe_allow_html=True)
-
-    # 1. EXISTING USER LOGIN
-    with st.container():
-        st.markdown('<div class="login-card-inner">', unsafe_allow_html=True)
-        st.subheader("Existing User Login (Face Scan)")
-
-        u_select = st.selectbox("Select Username", options=all_users, key="user_select")
-        target_code = VALID_USERS.get(u_select, "")
-
-        if face_detected_count > 0:
-            st.success("Face detected! Click 'Scan and Login'.")
+    if st.button("Scan and Login", use_container_width=True):
+        if face_detected_count == 0:
+            st.error("❌ **Detection Error:** No face detected to scan.")
+        elif face_detected_count > 1:
+            st.error("❌ **Detection Error:** Multiple faces detected.")
+        elif not target_code:
+            st.error("❌ **Registration Error:** User not registered.")
         else:
-            st.error("No face detected. Please look at the camera.")
+            st.session_state["auth_ok"] = True
+            st.session_state["auth_user"] = u_select
+            st.session_state["chat_history"] = []
+            st.success(f"🎉 **Face Biometric Login Success!** Welcome, **{u_select}**.")
+            st.rerun()
 
-        if st.button("Scan and Login", use_container_width=True):
-            if face_detected_count == 0:
-                st.error("❌ **Detection Error:** No face detected to scan.")
-            elif face_detected_count > 1:
-                st.error("❌ **Detection Error:** Too many faces detected. Please ensure only one person is visible.")
-            elif not target_code:
-                st.error("❌ **Registration Error:** User not fully registered.")
-            else:
-                st.session_state["auth_ok"] = True
-                st.session_state["auth_user"] = u_select
-                st.session_state["chat_history"] = []
-                st.success(f"🎉 **Face Biometric Login Success!** Welcome, **{u_select}**.")
-                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("</div>", unsafe_allow_html=True)
 
     # 2. NEW USER REGISTRATION
     with st.container():
@@ -3738,6 +3734,7 @@ if __name__ == "__main__":
         pass 
 
     
+
 
 
 
