@@ -7,6 +7,10 @@ plotly==5.24.1
 pmdarima==2.0.4
 prophet==1.1.5
 scikit-learn==1.5.2
+streamlit>=1.39.0
+streamlit-webrtc>=0.48.1
+av>=10.0.0
+opencv-python-headless
 qrcode
 pytesseract
 google-genai
@@ -14,6 +18,7 @@ requests>=2.32.0
 numpy==1.26.4
 opencv-python
 Pillow
+
 
 
 
