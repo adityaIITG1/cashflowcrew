@@ -22,25 +22,6 @@ import mediapipe as mp
 haar_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 face_cascade = cv2.CascadeClassifier(haar_path)
 
-# ===== PASTE THIS HERE (GLOBAL) =====
-RTC_CONFIGURATION = RTCConfiguration(
-    {
-        "iceServers": [
-            {"urls": ["stun:stun.l.google.com:19302"]},
-            {
-                "urls": [f"turn:{st.secrets['TURN_DOMAIN']}:80"],
-                "username": st.secrets["TURN_DOMAIN"],
-                "credential": st.secrets["TURN_SECRET"],
-            },
-            {
-                "urls": [f"turn:{st.secrets['TURN_DOMAIN']}:443?transport=tcp"],
-                "username": st.secrets["TURN_DOMAIN"],
-                "credential": st.secrets["TURN_SECRET"],
-            },
-        ]
-    }
-)
-
 # === NEW MODULE IMPORTS ===
 from analytics import (
     compute_fin_health_score,
@@ -3744,5 +3725,6 @@ if __name__ == "__main__":
         pass 
 
     
+
 
 
