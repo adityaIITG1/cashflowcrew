@@ -21,6 +21,17 @@ import cv2
 import mediapipe as mp
 haar_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 face_cascade = cv2.CascadeClassifier(haar_path)
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
+# ✅ compat for old/new streamlit-webrtc
+try:
+    from streamlit_webrtc import VideoTransformerBase
+except Exception:
+    from streamlit_webrtc import VideoProcessorBase as VideoTransformerBase
+
+from streamlit_webrtc import RTCConfiguration
+RTC_CONFIGURATION = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
 
 # === NEW MODULE IMPORTS ===
 from analytics import (
@@ -34,14 +45,16 @@ from analytics import (
 import pandas as pd
 
 def _safe_to_date(x) -> date:
-    """Return a real python date; fallback to today if x is empty/invalid."""
-    try:
-        dt = pd.to_datetime(x, errors="coerce")
-        if pd.isna(dt):
-            return date.today()
-        return dt.date()
-    except Exception:
+    dt = pd.to_datetime(x, errors="coerce")
+
+    if isinstance(dt, pd.Series):
+        dt = dt.iloc[0]
+
+    if pd.isna(dt):
         return date.today()
+
+    return dt.date()
+
 
 # Import OCR helpers
 from ocr import HAS_TESSERACT # noqa: F401
@@ -3725,6 +3738,7 @@ if __name__ == "__main__":
         pass 
 
     
+
 
 
 
