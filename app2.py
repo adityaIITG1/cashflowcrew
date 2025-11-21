@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import os
@@ -8,7 +9,6 @@ import requests
 import time
 import random
 import re
-import unicodedata
 from io import BytesIO
 from pathlib import Path
 from datetime import date, datetime, timedelta
@@ -19,14 +19,6 @@ from typing import Dict, List, Optional, Sequence, Any, Tuple
 import cv2
 import mediapipe as mp # noqa: F401
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
-
-# In newapp.py (around line 78)
-
-from extra_features import (
-    render_all_in_one_fresher_advisor, 
-    money 
-)
-# Ensure ALL other previous imports from extra_features are deleted or commented out here.
 
 # === NEW MODULE IMPORTS ===
 from analytics import (
@@ -74,12 +66,6 @@ from helper import (
     chat_reply,    # noqa: F401
     gemini_enabled # noqa: F401
 )
-# --- app.py (Top Section) ---
-# ... (Your existing imports)
-import pandas as pd
-import streamlit as st
-from datetime import date, timedelta
-# ...
 
 # Import Gemini SDK (optional)
 try:
@@ -109,6 +95,8 @@ st.set_page_config(page_title="Cash Flow Crew — Personal Finance AI Analyzer",
 # ============================================================
 # 🏙️ NEW: City Affordability (inlined module)
 # ============================================================
+
+import unicodedata
 
 # presets: (index, avg_rent, avg_food, avg_utilities, tier)
 # Tiers are determined by: T1 (>110), T2 (85-110), T3 (<=85)
@@ -981,7 +969,7 @@ def render_ca_plan_tab(df: pd.DataFrame):
                  "month": i, 
                  "amount": suggested_sip * i, 
                  "Date": date.today() + timedelta(days=30*i)
-               })
+             })
 
         data_sources = {
             "expense_caps": [
@@ -1081,180 +1069,6 @@ def render_ca_plan_tab(df: pd.DataFrame):
         st.json(plan_json)
 
 # ============================================================
-# 🏙️ NEW: Fresher's City Savings & Job Hunt Analyzer
-# ============================================================
-
-def _get_fresher_cost_df(cities: Dict[str, Tuple[int, int, int, int, str]], income: int) -> pd.DataFrame:
-    """Calculates cost and potential savings for an entry-level professional across all cities."""
-    rows = []
-    # Use 'Working Professional' profile as a proxy for a single fresher with minimal sharing/commute
-    profile = "Working Professional"
-    sharing = 2 # Assume a fresher will share a flat
-    locality = "Average"
-    commute = "Mixed"
-    
-    for city, (idx, avg_rent, avg_food, avg_utils, tier) in cities.items():
-        # Use the refined need calculation to get a better estimate
-        base_lw = _baseline_from_index(idx)
-        refined_need = _refine_need(
-            base_lw=base_lw,
-            avg_rent=avg_rent,
-            avg_food=avg_food,
-            avg_utils=avg_utils,
-            sharing=sharing,
-            locality=locality,
-            commute=commute,
-            profile=profile,
-        )
-        
-        monthly_surplus = income - refined_need
-        
-        rows.append({
-            "City": city,
-            "Tier": tier,
-            "Cost Index": idx,
-            "Estimated Living Need (₹)": refined_need,
-            "Monthly Surplus (₹)": monthly_surplus,
-            "Avg Rent (₹)": avg_rent,
-        })
-        
-    df = pd.DataFrame(rows).sort_values("Monthly Surplus (₹)", ascending=False).reset_index(drop=True)
-    return df
-
-def _gemini_fresher_advice(df: pd.DataFrame, income: int, lang: str = "en") -> str:
-    """Generates advice on the best cities for freshers to save money."""
-    key = os.environ.get("GEMINI_API_KEY") or ""
-    
-    # 1. Select the top 3 cities for saving
-    top_cities = df.head(3)
-    best_city = top_cities.iloc[0]['City']
-    best_surplus = top_cities.iloc[0]['Monthly Surplus (₹)']
-    
-    # 2. Prepare detailed context
-    context_list = [
-        f"The user is an entry-level engineer with a monthly take-home income of ₹{income:,}.",
-        f"The best city for savings is {best_city} with a potential monthly surplus of {_money_ci(best_surplus)}.",
-        f"The top three saving cities are: {', '.join([f'{r.City} ({_money_ci(r['Monthly Surplus (₹)'])})' for _, r in top_cities.iterrows()])}.",
-    ]
-    
-    context = "\n".join(context_list)
-    
-    if not (HAS_GEMINI_SDK and key.strip()):
-        if lang == "hi":
-             return f"⚠️ **AI अक्षम:** जेमिनी कुंजी/SDK उपलब्ध नहीं। **{best_city}** आपकी आय {_money_ci(income)} के लिए सबसे अच्छी बचत क्षमता (लगभग {_money_ci(best_surplus)} मासिक बचत) वाला शहर है।"
-        return f"⚠️ **AI Disabled:** Gemini key/SDK not available. **{best_city}** is the best saving city for your income of {_money_ci(income)} with a potential monthly surplus of {_money_ci(best_surplus)}."
-        
-    try:
-        client = genai.Client(api_key=key.strip())
-        prompt = f"""
-        You are an Indian career and finance coach.
-        Analyze the following context for an entry-level engineer:
-        {context}
-        
-        Write 3 short, encouraging paragraphs in {"Hindi" if lang=="hi" else "English"}.
-        1. Name the **Top 3 cities** for max savings and the maximum potential saving amount.
-        2. Explain **why** these Tier-2/3 cities (like Lucknow, Indore, etc.) are financially better than Tier-1 cities (like Bengaluru/Mumbai) for *freshers* (mention lower rent/food/utilities).
-        3. Give one **actionable career tip** for freshers moving to these cities (e.g., focus on remote jobs or upskilling).
-        """
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=[{"role": "user", "parts": [{"text": prompt}]}])
-        return (response.text or "").strip()
-    except Exception as e:
-        if lang == "hi":
-             return f"❌ **AI त्रुटि:** सलाह उत्पन्न करने में विफल। हालाँकि, डेटा के अनुसार, **{best_city}** (बचत: {_money_ci(best_surplus)}) सबसे अच्छा शहर है। (त्रुटि: {e})"
-        return f"❌ **AI Error:** Failed to generate advice. However, based on the data, **{best_city}** (Surplus: {_money_ci(best_surplus)}) is the best. (Error: {e})"
-
-def render_fresher_job_city_tab() -> None:
-    st.header("🧑‍💻 Fresher's City Savings & Job Hunt Analyzer")
-    st.caption("Identify Indian cities that maximize savings for an entry-level engineer.")
-    
-    # --- Inputs ---
-    col_i1, col_i2, col_i3 = st.columns(3)
-    
-    with col_i1:
-        # Fresher Salary is a critical input
-        fresher_salary = st.number_input(
-            "Expected Monthly Take-Home Income (₹)", 
-            min_value=15000, 
-            max_value=100000, 
-            value=40000, 
-            step=5000,
-            key="fresher_income"
-        )
-    with col_i2:
-        # Number of cities to display in the chart/table
-        top_n_cities = st.slider(
-            "Top N Cities to Display", 
-            min_value=5, 
-            max_value=len(ALL_CITIES), 
-            value=10
-        )
-    with col_i3:
-        advice_lang = st.selectbox("Advice Language 🗣️", ["English", "Hindi (हिंदी)"], index=0, key="fresher_advice_lang")
-        
-    if fresher_salary < 25000:
-        st.warning("Income is very low for a comfortable life. Focus on low-cost Tier-3 cities and high sharing (e.g., 3+ roommates).")
-
-    # --- Data Processing ---
-    comp_df = _get_fresher_cost_df(ALL_CITIES, int(fresher_salary))
-    comp_df_top = comp_df.head(top_n_cities)
-
-    st.markdown("---")
-
-    # --- Gemini Advice ---
-    st.subheader(f"🧠 AI Conclusion: Best Cities for Saving (Income: {_money_ci(fresher_salary)})")
-
-    # Generate and display English advice
-    advice_en = _gemini_fresher_advice(comp_df, int(fresher_salary), lang="en")
-    st.info(advice_en)
-
-    # Generate and display Hindi advice if selected
-    if advice_lang == "Hindi (हिंदी)":
-        advice_hi = _gemini_fresher_advice(comp_df, int(fresher_salary), lang="hi")
-        st.info(advice_hi)
-        
-    # --- Visualization ---
-    st.markdown("---")
-    st.subheader(f"📊 Top {top_n_cities} Cities by Potential Monthly Surplus")
-    
-    fig_fresher = px.bar(
-        comp_df_top,
-        x="City",
-        y="Monthly Surplus (₹)",
-        color="Tier",
-        title=f"Potential Monthly Savings with ₹{fresher_salary:,} Income (Top {top_n_cities} Cities)",
-        text="Monthly Surplus (₹)",
-        color_discrete_map={
-            "Tier-1": "#ef4444", 
-            "Tier-2": "#f97316", 
-            "Tier-3": "#22c55e"
-        }
-    )
-    fig_fresher.update_traces(
-        texttemplate='₹%{y:,.0f}', 
-        textposition='outside'
-    )
-    fig_fresher.update_layout(
-        height=550, 
-        template="plotly_dark",
-        yaxis_title="Potential Monthly Surplus (₹)",
-    )
-    st.plotly_chart(fig_fresher, use_container_width=True)
-
-    # --- Data Table ---
-    st.markdown("---")
-    st.subheader("📋 Detailed Savings Data Table")
-    st.dataframe(
-        comp_df.head(top_n_cities), 
-        use_container_width=True, 
-        hide_index=True,
-        column_order=["City", "Tier", "Estimated Living Need (₹)", "Monthly Surplus (₹)", "Cost Index", "Avg Rent (₹)"]
-    )
-    
-    st.markdown(
-        "<p style='color:gray;font-size:12px;'>*Note: Living Need is estimated for a single working professional sharing accommodation (2 people) in an Average locality with Mixed commute mode.*</p>", 
-        unsafe_allow_html=True
-    )
-# ============================================================
 # (Rest of your original app continues unchanged)
 # ============================================================
 
@@ -1265,7 +1079,7 @@ def _inject_global_particles(enabled: bool = True) -> None:
         components.html(
             """
             <script>
-            try { const old = document.getElementById('cc-particles'); if (old) old.remove(); } catch(e){}
+              try { const old = document.getElementById('cc-particles'); if (old) old.remove(); } catch(e){}
             </script>
             """,
             height=0,
@@ -2081,7 +1895,7 @@ def save_transactions(user_id: str, df: pd.DataFrame):
             typ=row["type"],
         )
 
-# --- NEW: AI Financial Plan Logic (Old 50/30/20 View) ---
+# --- NEW: AI Financial Plan Logic ---
 def _get_average_monthly_income(df: pd.DataFrame) -> float:
     """Calculates the average monthly income from the DataFrame."""
     if df.empty:
@@ -2099,10 +1913,10 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     st.markdown("""
     <style>
     .fade-line { opacity: 0; background: rgba(255,255,255,0.07); border-left: 4px solid #00f5d4; margin: 6px 0;
-                padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
-                animation: fadeIn 1.3s ease-in-out forwards; }
+                 padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
+                 animation: fadeIn 1.3s ease-in-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); box-shadow: 0 0 5px #00f5d4; }
-                            to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
+                               to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
     .plan-title { color: #8e2de2; text-align: center; margin-bottom: 20px; }
     .speak-button { background:#8e2de2;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600; }
     </style>
@@ -2697,43 +2511,16 @@ except Exception as e:
     st.error(f"Error normalizing data: {e}. Please check column names.")
     st.stop()
 
-# --- app.py (Tab Definition Section) ---
-# --- Replace it with this corrected structure ---
-# --- newapp.py (Around Line 2709) ---
-
-# --- newapp.py (Correct Tab Definition around line 2709) ---
-
-tab_dashboard, tab_stock, tab_plan, tab_city, tab_ca_plan, tab_tools, tab_fresher_aio = st.tabs([
+# --- Tabs ---
+tab_dashboard, tab_stock, tab_plan, tab_city, tab_ca_plan, tab_tools = st.tabs([
     "💰 Personal Dashboard",
-    "📈 Real-time Stock Data (Alphavantage)",
+    "📈 Real-time Stock Data (AlphaVantage)",
     "🎯 AI Financial Plan",
     "🏙️ City Affordability",
-    "🧑‍💼 Personal CA Blueprint",
-    "🧰 Tools (Edit • Backup • Dedupe)",
-    "⭐ All-in-One Fresher Advisor",  # <--- NEW TAB NAME
+    "🧑‍💼 Personal CA Blueprint", # NEW TAB
+    "🧰 Tools (Edit • Backup • Dedupe)"
 ])
 
-
-# --- Financial Planning Tab (Existing) ---
-with tab_plan:
-    _ai_financial_plan_view(df)
-
-# >>> PERSONAL CA BLUEPRINT (Existing) <<<
-with tab_ca_plan:
-    render_ca_plan_tab(df)
-
-# --- City Affordability Tab (Existing) ---
-with tab_city:
-    render_city_affordability_tab()
-# 2. Insert the content block for the new feature BEFORE the dashboard content starts.
-
-with tab_fresher_aio: # Use the variable defined immediately above
-    st.info("Loading Consolidated Fresher Advisor and Savings Tool...")
-    # Call the single function that contains all the logic
-    # Assumes 'df' and 'CURRENT_USER_ID' are available globally
-    render_all_in_one_fresher_advisor(st, user_id=CURRENT_USER_ID, df=df)
-
-# 3. Now, the rest of the application's original tabs must continue below this:
 with tab_dashboard:
     tb1, tb2, tb3, tb4, tb5, tb6, tb7 = st.columns([1.6, 1.4, 1.4, 1.8, 1.2, 1, 1.4])
     with tb1:
@@ -3778,6 +3565,18 @@ with tab_stock:
     else:
         st.info("Enter a stock symbol and click 'Fetch Quote & Charts'.")
 
+# --- Financial Planning Tab ---
+with tab_plan:
+    _ai_financial_plan_view(df)
+
+# >>> NEW TAB RENDER - PERSONAL CA BLUEPRINT <<<
+with tab_ca_plan:
+    render_ca_plan_tab(df)
+
+# --- City Affordability Tab ---
+with tab_city:
+    render_city_affordability_tab()
+
 # === Tools tab ===
 with tab_tools:
     st.header("🧰 Data Tools — Edit / Backup / Dedupe / Categories")
@@ -3940,4 +3739,6 @@ if __name__ == "__main__":
     try:
         st.session_state["DB"].save()
     except Exception:
-        pass
+        pass 
+
+    
