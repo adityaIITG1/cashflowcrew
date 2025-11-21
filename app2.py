@@ -15,23 +15,10 @@ from datetime import date, datetime, timedelta
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Sequence, Any, Tuple
 
-# ===== IMPORTS (already there) =====
-import streamlit as st
+# === ML/CV/OCR IMPORTS ===
 import cv2
-import mediapipe as mp
-haar_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-face_cascade = cv2.CascadeClassifier(haar_path)
-from streamlit_webrtc import webrtc_streamer, WebRtcMode
-# ✅ compat for old/new streamlit-webrtc
-try:
-    from streamlit_webrtc import VideoTransformerBase
-except Exception:
-    from streamlit_webrtc import VideoProcessorBase as VideoTransformerBase
-
-from streamlit_webrtc import RTCConfiguration
-RTC_CONFIGURATION = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-)
+import mediapipe as mp # noqa: F401
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 
 # === NEW MODULE IMPORTS ===
 from analytics import (
@@ -45,16 +32,14 @@ from analytics import (
 import pandas as pd
 
 def _safe_to_date(x) -> date:
-    dt = pd.to_datetime(x, errors="coerce")
-
-    if isinstance(dt, pd.Series):
-        dt = dt.iloc[0]
-
-    if pd.isna(dt):
+    """Return a real python date; fallback to today if x is empty/invalid."""
+    try:
+        dt = pd.to_datetime(x, errors="coerce")
+        if pd.isna(dt):
+            return date.today()
+        return dt.date()
+    except Exception:
         return date.today()
-
-    return dt.date()
-
 
 # Import OCR helpers
 from ocr import HAS_TESSERACT # noqa: F401
@@ -1332,6 +1317,42 @@ class MiniDB:
         except Exception:
             return cls()
 
+
+# ============================== Face Detector Transformer ==============================
+
+class FaceDetectorTransformer(VideoTransformerBase):
+    """Detects a face using OpenCV Haar Cascade and overlays a simple status."""
+    def __init__(self):
+        haar_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        self.face_cascade = cv2.CascadeClassifier(haar_path)
+        self.face_detected_count = 0
+        self.current_face_vector = ""
+
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        img = cv2.flip(img, 1)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, 1.1, 5)
+        self.face_detected_count = len(faces)
+
+        if self.face_detected_count > 0:
+            (x, y, w, h) = faces[0]
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(
+                img, "FACE DETECTED", (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA
+            )
+            self.current_face_vector = f"{x},{y},{w},{h},{datetime.now().hour}"
+        else:
+            self.current_face_vector = ""
+
+        status_text = f"Face(s) Found: {self.face_detected_count}"
+        color = (0, 255, 0) if self.face_detected_count > 0 else (0, 0, 255)
+        cv2.putText(img, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+
+        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
 # ============================== API Keys and Configuration ==============================
 
 # FIX: USING LATEST VALID KEY AND ENSURING DEFINITIVE ASSIGNMENT.
@@ -2148,65 +2169,52 @@ def _login_view() -> None:
     st.subheader("Live Face Recognition")
     st.warning("Grant camera access. Look directly at the camera to allow face detection and capture.")
 
-    st.subheader("📸 Face Login (Capture Photo)")
+    ctx = webrtc_streamer(
+        key="ml_webcam_input",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+        video_processor_factory=FaceDetectorTransformer,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
 
-img_file = st.camera_input("Take a photo to login")
-
-face_detected_count = 0
-current_face_vector = None
-
-if img_file is not None:
-    import numpy as np
-    import cv2
-
-    bytes_data = img_file.getvalue()
-    img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-
-    st.image(img, caption="Captured Photo", use_column_width=True)
-
-    # Face detect
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.1, 5)
-
-    face_detected_count = len(faces)
-    current_face_vector = faces  # or embeddings later
-
-    if face_detected_count > 0:
-        st.success("Face detected ✅ Now verify user...")
+    if ctx.video_processor:
+        face_detected_count = ctx.video_processor.face_detected_count
+        current_face_vector = ctx.video_processor.current_face_vector
     else:
-        st.error("No face detected ❌ Please try again clearly.")
+        face_detected_count = 0
+        current_face_vector = ""
 
-# Login card
-st.markdown('<div class="login-card-container">', unsafe_allow_html=True)
+    st.markdown('<div class="login-card-container">', unsafe_allow_html=True)
 
-with st.container():
-    st.markdown('<div class="login-card-inner">', unsafe_allow_html=True)
-    st.subheader("Existing User Login (Face Scan)")
+    # 1. EXISTING USER LOGIN
+    with st.container():
+        st.markdown('<div class="login-card-inner">', unsafe_allow_html=True)
+        st.subheader("Existing User Login (Face Scan)")
 
-    u_select = st.selectbox("Select Username", options=all_users, key="user_select")
-    target_code = VALID_USERS.get(u_select, "")
+        u_select = st.selectbox("Select Username", options=all_users, key="user_select")
+        target_code = VALID_USERS.get(u_select, "")
 
-    if face_detected_count > 0:
-        st.success("Face detected! Click 'Scan and Login'.")
-    else:
-        st.error("No face detected. Please look at the camera.")
-
-    if st.button("Scan and Login", use_container_width=True):
-        if face_detected_count == 0:
-            st.error("❌ **Detection Error:** No face detected to scan.")
-        elif face_detected_count > 1:
-            st.error("❌ **Detection Error:** Multiple faces detected.")
-        elif not target_code:
-            st.error("❌ **Registration Error:** User not registered.")
+        if face_detected_count > 0:
+            st.success("Face detected! Click 'Scan and Login'.")
         else:
-            st.session_state["auth_ok"] = True
-            st.session_state["auth_user"] = u_select
-            st.session_state["chat_history"] = []
-            st.success(f"🎉 **Face Biometric Login Success!** Welcome, **{u_select}**.")
-            st.rerun()
+            st.error("No face detected. Please look at the camera.")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        if st.button("Scan and Login", use_container_width=True):
+            if face_detected_count == 0:
+                st.error("❌ **Detection Error:** No face detected to scan.")
+            elif face_detected_count > 1:
+                st.error("❌ **Detection Error:** Too many faces detected. Please ensure only one person is visible.")
+            elif not target_code:
+                st.error("❌ **Registration Error:** User not fully registered.")
+            else:
+                st.session_state["auth_ok"] = True
+                st.session_state["auth_user"] = u_select
+                st.session_state["chat_history"] = []
+                st.success(f"🎉 **Face Biometric Login Success!** Welcome, **{u_select}**.")
+                st.rerun()
 
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # 2. NEW USER REGISTRATION
     with st.container():
@@ -3734,8 +3742,3 @@ if __name__ == "__main__":
         pass 
 
     
-
-
-
-
-
