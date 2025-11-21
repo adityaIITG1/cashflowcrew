@@ -19,8 +19,8 @@ from typing import Dict, List, Optional, Sequence, Any, Tuple
 import streamlit as st
 import cv2
 import mediapipe as mp
-from streamlit_webrtc import VideoTransformerBase
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+haar_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+face_cascade = cv2.CascadeClassifier(haar_path)
 
 # ===== PASTE THIS HERE (GLOBAL) =====
 RTC_CONFIGURATION = RTCConfiguration(
@@ -1338,42 +1338,6 @@ class MiniDB:
         except Exception:
             return cls()
 
-
-# ============================== Face Detector Transformer ==============================
-
-class FaceDetectorTransformer(VideoTransformerBase):
-    """Detects a face using OpenCV Haar Cascade and overlays a simple status."""
-    def __init__(self):
-        haar_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        self.face_cascade = cv2.CascadeClassifier(haar_path)
-        self.face_detected_count = 0
-        self.current_face_vector = ""
-
-    def recv(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        img = cv2.flip(img, 1)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 5)
-        self.face_detected_count = len(faces)
-
-        if self.face_detected_count > 0:
-            (x, y, w, h) = faces[0]
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            cv2.putText(
-                img, "FACE DETECTED", (x, y - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA
-            )
-            self.current_face_vector = f"{x},{y},{w},{h},{datetime.now().hour}"
-        else:
-            self.current_face_vector = ""
-
-        status_text = f"Face(s) Found: {self.face_detected_count}"
-        color = (0, 255, 0) if self.face_detected_count > 0 else (0, 0, 255)
-        cv2.putText(img, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-
-        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-
 # ============================== API Keys and Configuration ==============================
 
 # FIX: USING LATEST VALID KEY AND ENSURING DEFINITIVE ASSIGNMENT.
@@ -2190,13 +2154,30 @@ def _login_view() -> None:
     st.subheader("Live Face Recognition")
     st.warning("Grant camera access. Look directly at the camera to allow face detection and capture.")
 
-    ctx = webrtc_streamer(
-    key="ml_webcam_input",
-    mode=WebRtcMode.SENDRECV,
-    rtc_configuration=RTC_CONFIGURATION,  # ✅ yaha replace/add karo
-    media_stream_constraints={"video": True, "audio": False},
-    async_processing=True
-)
+    st.subheader("📸 Face Login (Capture Photo)")
+
+img_file = st.camera_input("Take a photo to login")
+
+if img_file is not None:
+    import numpy as np
+    import cv2
+
+    bytes_data = img_file.getvalue()
+    img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+
+    st.image(img, caption="Captured Photo", use_container_width=True)
+
+    # ✅ yaha tumhara face detect / match logic chalega
+    # Example:
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, 1.1, 5)
+
+    if len(faces) > 0:
+        st.success("Face detected ✅ Now verify user...")
+        # TODO: embedding compare + login set session_state
+    else:
+        st.error("No face detected ❌ Please try again clearly.")
+
 
 
     if ctx.video_processor:
@@ -3763,4 +3744,5 @@ if __name__ == "__main__":
         pass 
 
     
+
 
