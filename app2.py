@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Sequence, Any, Tuple
 import streamlit as st
 import cv2
 import mediapipe as mp
+from streamlit_webrtc import VideoTransformerBase
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 
 # ===== PASTE THIS HERE (GLOBAL) =====
@@ -3762,3 +3763,4 @@ if __name__ == "__main__":
         pass 
 
     
+
