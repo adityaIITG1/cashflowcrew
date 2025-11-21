@@ -15,10 +15,30 @@ from datetime import date, datetime, timedelta
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Sequence, Any, Tuple
 
-# === ML/CV/OCR IMPORTS ===
+# ===== IMPORTS (already there) =====
+import streamlit as st
 import cv2
-import mediapipe as mp # noqa: F401
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
+import mediapipe as mp
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+
+# ===== PASTE THIS HERE (GLOBAL) =====
+RTC_CONFIGURATION = RTCConfiguration(
+    {
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {
+                "urls": [f"turn:{st.secrets['TURN_DOMAIN']}:80"],
+                "username": st.secrets["TURN_DOMAIN"],
+                "credential": st.secrets["TURN_SECRET"],
+            },
+            {
+                "urls": [f"turn:{st.secrets['TURN_DOMAIN']}:443?transport=tcp"],
+                "username": st.secrets["TURN_DOMAIN"],
+                "credential": st.secrets["TURN_SECRET"],
+            },
+        ]
+    }
+)
 
 # === NEW MODULE IMPORTS ===
 from analytics import (
@@ -2170,13 +2190,13 @@ def _login_view() -> None:
     st.warning("Grant camera access. Look directly at the camera to allow face detection and capture.")
 
     ctx = webrtc_streamer(
-        key="ml_webcam_input",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-        video_processor_factory=FaceDetectorTransformer,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
-    )
+    key="ml_webcam_input",
+    mode=WebRtcMode.SENDRECV,
+    rtc_configuration=RTC_CONFIGURATION,  # ✅ yaha replace/add karo
+    media_stream_constraints={"video": True, "audio": False},
+    async_processing=True
+)
+
 
     if ctx.video_processor:
         face_detected_count = ctx.video_processor.face_detected_count
