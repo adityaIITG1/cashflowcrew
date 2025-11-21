@@ -8,11 +8,25 @@ import requests
 import time
 import random
 import re
+import unicodedata
 from io import BytesIO
 from pathlib import Path
 from datetime import date, datetime, timedelta
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Sequence, Any, Tuple
+
+# === ML/CV/OCR IMPORTS ===
+import cv2
+import mediapipe as mp # noqa: F401
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
+
+# In newapp.py (around line 78)
+
+from extra_features import (
+    render_all_in_one_fresher_advisor, 
+    money 
+)
+# Ensure ALL other previous imports from extra_features are deleted or commented out here.
 
 # === NEW MODULE IMPORTS ===
 from analytics import (
@@ -24,14 +38,6 @@ from analytics import (
 )
 
 import pandas as pd
-import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-import streamlit as st
-import streamlit.components.v1 as components
-from PIL import Image, ImageDraw
-import qrcode
-# Removed local sklearn imports that are not used globally
 
 def _safe_to_date(x) -> date:
     """Return a real python date; fallback to today if x is empty/invalid."""
@@ -49,12 +55,14 @@ from ocr import HAS_TESSERACT # noqa: F401
 from telegram_utils import send_report_png
 # Import Weather helpers
 from weather import get_weather, spend_mood_hint
+# Import Generative Viz helper
+from gen_viz import suggest_infographic_spec, _static_fallback_viz
 # Import Custom UI helpers
 from ui_patches import (
     display_health_score,
     display_badges,
     budget_bot_minicard,
-    money, # FIXED: money(v) function logic must be robust in ui_patches.py
+    money,
     glowing_ocr_uploader,
 )
 
@@ -62,10 +70,16 @@ from helper import (
     build_smart_advice_bilingual,
     speak_bilingual_js,
     smart_machine_listener,
-    gen_viz_spec, # noqa: F401
-    chat_reply, # noqa: F401
+    gen_viz_spec,  # noqa: F401
+    chat_reply,    # noqa: F401
     gemini_enabled # noqa: F401
 )
+# --- app.py (Top Section) ---
+# ... (Your existing imports)
+import pandas as pd
+import streamlit as st
+from datetime import date, timedelta
+# ...
 
 # Import Gemini SDK (optional)
 try:
@@ -81,125 +95,20 @@ try:
 except ImportError:
     HAS_OPENAI_SDK = False
 
-# --- CONFIGURATION CONSTANTS (Matching QCLAY Design) ---
-ACCENT_PURPLE = "#9333ea"
-ACCENT_CYAN = "#00ffc8"
-DARK_CARD_BG = "#1f1f1f"
-DEEP_BG = "#121212"
-
-
-# --- AGGRESSIVE CUSTOM CSS FOR DARK MODE / GLOWING CARDS ---
-# FINAL PHASE SIMPLIFICATION: Removing complex shadows and animations for speed.
-CUSTOM_QCLAY_CSS = f"""
-<style>
-/* ---------------- 1. GLOBAL & BASE STYLES (QCLAY DARK) ---------------- */
-
-/* Override Streamlit's main background */
-.stApp {{
-    background-color: {DEEP_BG} !important; 
-    color: #ffffff;
-    font-family: 'Inter', sans-serif;
-}}
-
-/* Set the sidebar background to match the card color */
-[data-testid="stSidebar"] {{
-    background-color: {DARK_CARD_BG} !important;
-}}
-
-/* Ensure all headers are white */
-h1, h2, h3, h4, h5, h6, label {{
-    color: #ffffff !important;
-}}
-
-/* ---------------- 2. CARD COMPONENT OVERRIDES (SIMPLE DARK CARD - FAST) ---------------- */
-
-/* TARGET 1: Containers holding st.metric, st.dataframe, or st.plotly_chart */
-div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stMetric"]),
-div[data-testid*="stVerticalBlock"] > div:has(div.stPlotlyChart),
-div[data-testid*="stVerticalBlock"] > div:has(div.stDataFrame),
-div[data-testid*="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {{
-    background-color: {DARK_CARD_BG};
-    padding: 25px;
-    border-radius: 16px; 
-    margin-bottom: 20px;
-    /* Reduced shadow complexity */
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); 
-    border: 1px solid rgba(255, 255, 255, 0.1); 
-}}
-
-/* TARGET 2: Remove transparency/blur/heavy shadow from nested components */
-div[data-testid*="stVerticalBlock"] > div:has(div.stPlotlyChart),
-div[data-testid="stVerticalBlockBorder"] {{
-    background-color: {DARK_CARD_BG};
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); 
-}}
-
-
-/* ---------------- 3. METRICS AND INPUTS STYLES ---------------- */
-
-/* Metric Value (The large numbers) */
-div[data-testid="stMetricValue"] {{
-    color: {ACCENT_CYAN};
-    font-size: 2.5rem;
-    font-weight: 800;
-    text-shadow: none; /* REMOVED EXPENSIVE TEXT SHADOW/GLOW */
-}}
-
-/* Input Field Overrides for Dark Mode */
-div[data-testid="stTextInput"] > div > div > input,
-div[data-testid="stNumberInput"] > div > div > input,
-div[data-testid="stSelectbox"] button {{
-    background-color: {DEEP_BG} !important;
-    border: 1px solid rgba(147, 51, 234, 0.3);
-    border-radius: 8px;
-    color: #ffffff;
-    padding: 10px;
-    box-shadow: none !important; 
-    transition: all 0.2s ease-in-out;
-}}
-/* Input Focus Effect (Simple Glow) */
-div[data-testid="stTextInput"] > div > div > input:focus,
-div[data-testid="stNumberInput"] > div > div > input:focus,
-div[data-testid="stSelectbox"] button:focus {{
-    border-color: {ACCENT_CYAN} !important;
-    box-shadow: 0 0 5px rgba(0, 255, 200, 0.4) !important;
-    outline: none; 
-}}
-
-/* ---------------- 4. HORIZONTAL SCROLL CARDS (New Layout) ---------------- */
-.scroll-container {{
-    display: flex;
-    overflow-x: auto; 
-    gap: 20px; 
-    padding: 20px 0;
-}}
-.scroll-item-custom {{
-    flex: 0 0 250px;
-    min-width: 250px;
-    background-color: {DARK_CARD_BG};
-    padding: 25px;
-    border-radius: 16px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4); 
-}}
-.scroll-item-custom p {{
-    color: #ffffff;
-}}
-.scroll-item-custom h3 {{
-    color: {ACCENT_CYAN};
-}}
-</style>
-"""
-# --- END AGGRESSIVE CUSTOM CSS ---
-
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+import streamlit.components.v1 as components
+from PIL import Image, ImageDraw
+from sklearn.feature_extraction.text import TfidfVectorizer # noqa: F401
+from sklearn.metrics.pairwise import cosine_similarity        # noqa: F401
+import qrcode
 
 st.set_page_config(page_title="Cash Flow Crew — Personal Finance AI Analyzer", page_icon="📈💰📊", layout="wide")
 # ============================================================
 # 🏙️ NEW: City Affordability (inlined module)
 # ============================================================
-
-import unicodedata
 
 # presets: (index, avg_rent, avg_food, avg_utilities, tier)
 # Tiers are determined by: T1 (>110), T2 (85-110), T3 (<=85)
@@ -347,8 +256,7 @@ def _badge_html(cat: str) -> str:
         "no expensive": "#06b6d4",
     }
     c = colors.get(cat, "#64748b")
-    # Apply dark mode styles to the badge itself
-    return f"<span style='background:{c};color:#fff;padding:4px 10px;border-radius:999px;font-weight:700;box-shadow: 0 0 5px {c}80;'>{cat.upper()}</span>"
+    return f"<span style='background:{c};color:#fff;padding:4px 10px;border-radius:999px;font-weight:700'>{cat.upper()}</span>"
 
 def _refine_need(
     base_lw: int,
@@ -731,9 +639,9 @@ def render_city_affordability_tab() -> None:
                 avg_food=avg_food,
                 avg_utils=avg_utils,
                 sharing=sharing, # Use value from form 
-                locality=loc, # Use value from form 
+                locality=loc,    # Use value from form 
                 commute=commute, # Use value from form 
-                profile=profile # Use value from form 
+                profile=profile  # Use value from form 
             )
             all_cities_comp_rows.append({
                 "City": city,
@@ -763,16 +671,7 @@ def render_city_affordability_tab() -> None:
                 }
             )
             fig_comp.update_traces(texttemplate='₹%{y:,.0f}', textposition='outside')
-            # Custom dark theme update for the chart
-            fig_comp.update_layout(
-                height=550, 
-                template="plotly_dark",
-                paper_bgcolor=DARK_CARD_BG,
-                plot_bgcolor=DARK_CARD_BG,
-                font_color="#ffffff",
-                # Enhance glow effect on bars
-                hoverlabel=dict(bgcolor="#222")
-            ) 
+            fig_comp.update_layout(height=550, template="plotly_dark")
             st.plotly_chart(fig_comp, use_container_width=True)
 
 
@@ -789,7 +688,6 @@ def render_city_affordability_tab() -> None:
 # 🧑‍💼 NEW: Personal CA Financial Plan Generator
 # ============================================================
 
-@st.cache_data(ttl=timedelta(hours=6)) # <<< ADDED CACHING >>>
 def generate_ca_financial_plan(life_stage: str, city: str, monthly_income: int, monthly_expenses: Optional[int] = None) -> Tuple[str, str, dict]:
     """
     Generates a full financial blueprint based on life stage, city, and income.
@@ -876,8 +774,9 @@ def generate_ca_financial_plan(life_stage: str, city: str, monthly_income: int, 
     if city_config["cost_level"] in ["VERY HIGH", "HIGH"] and monthly_income < 60000:
         bengaluru_info = "\n\n**Note:** The cost of living is **Very High** here. You must be extremely disciplined."
     
-    # NOTE: Using the imported 'money' function from ui_patches for consistency
-    
+    def money(x):
+        return f"₹{int(round(x)):,}"
+        
     explanation = f"""
 ## 🎯 Your Personalized Financial Blueprint by PRAKRITI AI 👩‍💻
 
@@ -1082,7 +981,7 @@ def render_ca_plan_tab(df: pd.DataFrame):
                  "month": i, 
                  "amount": suggested_sip * i, 
                  "Date": date.today() + timedelta(days=30*i)
-                })
+               })
 
         data_sources = {
             "expense_caps": [
@@ -1134,29 +1033,19 @@ def render_ca_plan_tab(df: pd.DataFrame):
                 if chart_type in ["bar", "pie", "donut", "area", "line"]:
                     
                     if chart_type == "bar":
-                        fig = px.bar(df_chart, x=x_key, y=y_key, color_discrete_sequence=[ACCENT_PURPLE]) # Use Accent
+                        fig = px.bar(df_chart, x=x_key, y=y_key, color_discrete_sequence=['#6a5acd'])
                     elif chart_type == "pie":
-                        # Use a custom, dark-friendly sequential color scheme
-                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.3, color_discrete_sequence=px.colors.sequential.Plotly3) 
+                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.3, color_discrete_sequence=px.colors.qualitative.Pastel)
                     elif chart_type == "donut":
-                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.6, color_discrete_sequence=px.colors.sequential.Plotly3)
+                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.6, color_discrete_sequence=px.colors.qualitative.Pastel)
                     elif chart_type == "line":
-                        fig = px.line(df_chart, x="Date" if x_key == "month" else x_key, y=y_key, markers=True, color_discrete_sequence=[ACCENT_CYAN]) # Use Accent
+                        fig = px.line(df_chart, x="Date" if x_key == "month" else x_key, y=y_key, markers=True, color_discrete_sequence=['#22c55e'])
                         fig.update_xaxes(title_text='Month')
                         
                     elif chart_type == "area":
-                        fig = px.area(df_chart, x=x_key, y=y_key, color_discrete_sequence=[ACCENT_PURPLE]) # Use Accent
+                        fig = px.area(df_chart, x=x_key, y=y_key, color_discrete_sequence=['#8a2be2'])
                     
-                    # ENHANCEMENT: Force dark theme inside the chart to match card
-                    fig.update_layout(
-                        template="plotly_dark", 
-                        height=300, 
-                        showlegend=True, 
-                        margin=dict(t=30, b=30, l=20, r=20),
-                        paper_bgcolor=DARK_CARD_BG,
-                        plot_bgcolor=DARK_CARD_BG,
-                        font_color="#ffffff"
-                    )
+                    fig.update_layout(template="plotly_dark", height=300, showlegend=True, margin=dict(t=30, b=30, l=20, r=20))
                     if chart_type in ["bar"]:
                         fig.update_traces(texttemplate='₹%{y:,.0f}', textposition='outside')
                         fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
@@ -1171,26 +1060,18 @@ def render_ca_plan_tab(df: pd.DataFrame):
                     fig = go.Figure(go.Indicator(
                         mode="gauge+number",
                         value=value,
-                        gauge={"axis": {"range": [0, max_val], "tickwidth": 1, "tickcolor": DARK_CARD_BG},
-                               "bar": {"color": ACCENT_CYAN}, # Use Accent
+                        gauge={"axis": {"range": [0, max_val], "tickwidth": 1, "tickcolor": "darkblue"},
+                               "bar": {"color": "#6a5acd"},
                                "bgcolor": "white",
                                "steps": [
-                                   {"range": [0, max_val * 0.5], "color": "#1f1f1f"}, # Darker steps
-                                   {"range": [max_val * 0.5, max_val], "color": "#333333"}
+                                   {"range": [0, max_val * 0.5], "color": "lightgray"},
+                                   {"range": [max_val * 0.5, max_val], "color": "gray"}
                                ],
-                               "threshold": {"line": {"color": "#ef4444", "width": 4}, "thickness": 0.75, "value": emergency_months}
+                               "threshold": {"line": {"color": "red", "width": 4}, "thickness": 0.75, "value": emergency_months}
                                },
                         number={"valueformat": ".1f"}
                     ))
-                    # ENHANCEMENT: Force dark theme inside the chart
-                    fig.update_layout(
-                        template="plotly_dark", 
-                        height=300, 
-                        margin=dict(t=50, b=50, l=20, r=20),
-                        paper_bgcolor=DARK_CARD_BG,
-                        plot_bgcolor=DARK_CARD_BG,
-                        font_color="#ffffff"
-                    )
+                    fig.update_layout(template="plotly_dark", height=300, margin=dict(t=50, b=50, l=20, r=20))
                     st.plotly_chart(fig, use_container_width=True)
 
                 st.markdown(f"<p style='color:#888;font-size:12px;'>💡 {bp['description']}</p>", unsafe_allow_html=True)
@@ -1199,6 +1080,180 @@ def render_ca_plan_tab(df: pd.DataFrame):
         st.subheader("Raw JSON Blueprint")
         st.json(plan_json)
 
+# ============================================================
+# 🏙️ NEW: Fresher's City Savings & Job Hunt Analyzer
+# ============================================================
+
+def _get_fresher_cost_df(cities: Dict[str, Tuple[int, int, int, int, str]], income: int) -> pd.DataFrame:
+    """Calculates cost and potential savings for an entry-level professional across all cities."""
+    rows = []
+    # Use 'Working Professional' profile as a proxy for a single fresher with minimal sharing/commute
+    profile = "Working Professional"
+    sharing = 2 # Assume a fresher will share a flat
+    locality = "Average"
+    commute = "Mixed"
+    
+    for city, (idx, avg_rent, avg_food, avg_utils, tier) in cities.items():
+        # Use the refined need calculation to get a better estimate
+        base_lw = _baseline_from_index(idx)
+        refined_need = _refine_need(
+            base_lw=base_lw,
+            avg_rent=avg_rent,
+            avg_food=avg_food,
+            avg_utils=avg_utils,
+            sharing=sharing,
+            locality=locality,
+            commute=commute,
+            profile=profile,
+        )
+        
+        monthly_surplus = income - refined_need
+        
+        rows.append({
+            "City": city,
+            "Tier": tier,
+            "Cost Index": idx,
+            "Estimated Living Need (₹)": refined_need,
+            "Monthly Surplus (₹)": monthly_surplus,
+            "Avg Rent (₹)": avg_rent,
+        })
+        
+    df = pd.DataFrame(rows).sort_values("Monthly Surplus (₹)", ascending=False).reset_index(drop=True)
+    return df
+
+def _gemini_fresher_advice(df: pd.DataFrame, income: int, lang: str = "en") -> str:
+    """Generates advice on the best cities for freshers to save money."""
+    key = os.environ.get("GEMINI_API_KEY") or ""
+    
+    # 1. Select the top 3 cities for saving
+    top_cities = df.head(3)
+    best_city = top_cities.iloc[0]['City']
+    best_surplus = top_cities.iloc[0]['Monthly Surplus (₹)']
+    
+    # 2. Prepare detailed context
+    context_list = [
+        f"The user is an entry-level engineer with a monthly take-home income of ₹{income:,}.",
+        f"The best city for savings is {best_city} with a potential monthly surplus of {_money_ci(best_surplus)}.",
+        f"The top three saving cities are: {', '.join([f'{r.City} ({_money_ci(r['Monthly Surplus (₹)'])})' for _, r in top_cities.iterrows()])}.",
+    ]
+    
+    context = "\n".join(context_list)
+    
+    if not (HAS_GEMINI_SDK and key.strip()):
+        if lang == "hi":
+             return f"⚠️ **AI अक्षम:** जेमिनी कुंजी/SDK उपलब्ध नहीं। **{best_city}** आपकी आय {_money_ci(income)} के लिए सबसे अच्छी बचत क्षमता (लगभग {_money_ci(best_surplus)} मासिक बचत) वाला शहर है।"
+        return f"⚠️ **AI Disabled:** Gemini key/SDK not available. **{best_city}** is the best saving city for your income of {_money_ci(income)} with a potential monthly surplus of {_money_ci(best_surplus)}."
+        
+    try:
+        client = genai.Client(api_key=key.strip())
+        prompt = f"""
+        You are an Indian career and finance coach.
+        Analyze the following context for an entry-level engineer:
+        {context}
+        
+        Write 3 short, encouraging paragraphs in {"Hindi" if lang=="hi" else "English"}.
+        1. Name the **Top 3 cities** for max savings and the maximum potential saving amount.
+        2. Explain **why** these Tier-2/3 cities (like Lucknow, Indore, etc.) are financially better than Tier-1 cities (like Bengaluru/Mumbai) for *freshers* (mention lower rent/food/utilities).
+        3. Give one **actionable career tip** for freshers moving to these cities (e.g., focus on remote jobs or upskilling).
+        """
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=[{"role": "user", "parts": [{"text": prompt}]}])
+        return (response.text or "").strip()
+    except Exception as e:
+        if lang == "hi":
+             return f"❌ **AI त्रुटि:** सलाह उत्पन्न करने में विफल। हालाँकि, डेटा के अनुसार, **{best_city}** (बचत: {_money_ci(best_surplus)}) सबसे अच्छा शहर है। (त्रुटि: {e})"
+        return f"❌ **AI Error:** Failed to generate advice. However, based on the data, **{best_city}** (Surplus: {_money_ci(best_surplus)}) is the best. (Error: {e})"
+
+def render_fresher_job_city_tab() -> None:
+    st.header("🧑‍💻 Fresher's City Savings & Job Hunt Analyzer")
+    st.caption("Identify Indian cities that maximize savings for an entry-level engineer.")
+    
+    # --- Inputs ---
+    col_i1, col_i2, col_i3 = st.columns(3)
+    
+    with col_i1:
+        # Fresher Salary is a critical input
+        fresher_salary = st.number_input(
+            "Expected Monthly Take-Home Income (₹)", 
+            min_value=15000, 
+            max_value=100000, 
+            value=40000, 
+            step=5000,
+            key="fresher_income"
+        )
+    with col_i2:
+        # Number of cities to display in the chart/table
+        top_n_cities = st.slider(
+            "Top N Cities to Display", 
+            min_value=5, 
+            max_value=len(ALL_CITIES), 
+            value=10
+        )
+    with col_i3:
+        advice_lang = st.selectbox("Advice Language 🗣️", ["English", "Hindi (हिंदी)"], index=0, key="fresher_advice_lang")
+        
+    if fresher_salary < 25000:
+        st.warning("Income is very low for a comfortable life. Focus on low-cost Tier-3 cities and high sharing (e.g., 3+ roommates).")
+
+    # --- Data Processing ---
+    comp_df = _get_fresher_cost_df(ALL_CITIES, int(fresher_salary))
+    comp_df_top = comp_df.head(top_n_cities)
+
+    st.markdown("---")
+
+    # --- Gemini Advice ---
+    st.subheader(f"🧠 AI Conclusion: Best Cities for Saving (Income: {_money_ci(fresher_salary)})")
+
+    # Generate and display English advice
+    advice_en = _gemini_fresher_advice(comp_df, int(fresher_salary), lang="en")
+    st.info(advice_en)
+
+    # Generate and display Hindi advice if selected
+    if advice_lang == "Hindi (हिंदी)":
+        advice_hi = _gemini_fresher_advice(comp_df, int(fresher_salary), lang="hi")
+        st.info(advice_hi)
+        
+    # --- Visualization ---
+    st.markdown("---")
+    st.subheader(f"📊 Top {top_n_cities} Cities by Potential Monthly Surplus")
+    
+    fig_fresher = px.bar(
+        comp_df_top,
+        x="City",
+        y="Monthly Surplus (₹)",
+        color="Tier",
+        title=f"Potential Monthly Savings with ₹{fresher_salary:,} Income (Top {top_n_cities} Cities)",
+        text="Monthly Surplus (₹)",
+        color_discrete_map={
+            "Tier-1": "#ef4444", 
+            "Tier-2": "#f97316", 
+            "Tier-3": "#22c55e"
+        }
+    )
+    fig_fresher.update_traces(
+        texttemplate='₹%{y:,.0f}', 
+        textposition='outside'
+    )
+    fig_fresher.update_layout(
+        height=550, 
+        template="plotly_dark",
+        yaxis_title="Potential Monthly Surplus (₹)",
+    )
+    st.plotly_chart(fig_fresher, use_container_width=True)
+
+    # --- Data Table ---
+    st.markdown("---")
+    st.subheader("📋 Detailed Savings Data Table")
+    st.dataframe(
+        comp_df.head(top_n_cities), 
+        use_container_width=True, 
+        hide_index=True,
+        column_order=["City", "Tier", "Estimated Living Need (₹)", "Monthly Surplus (₹)", "Cost Index", "Avg Rent (₹)"]
+    )
+    
+    st.markdown(
+        "<p style='color:gray;font-size:12px;'>*Note: Living Need is estimated for a single working professional sharing accommodation (2 people) in an Average locality with Mixed commute mode.*</p>", 
+        unsafe_allow_html=True
+    )
 # ============================================================
 # (Rest of your original app continues unchanged)
 # ============================================================
@@ -1256,7 +1311,6 @@ class Transaction:
 class MiniDB:
     """In-memory orders + transactions with optional JSON persistence."""
     DB_PATH = Path("mini_db.json")
-    CREDS_PATH = Path("user_creds.json") # Path for user credentials
 
     def __init__(self) -> None:
         self._orders: Dict[int, Order] = {}
@@ -1450,6 +1504,41 @@ class MiniDB:
             return cls()
 
 
+# ============================== Face Detector Transformer ==============================
+
+class FaceDetectorTransformer(VideoTransformerBase):
+    """Detects a face using OpenCV Haar Cascade and overlays a simple status."""
+    def __init__(self):
+        haar_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        self.face_cascade = cv2.CascadeClassifier(haar_path)
+        self.face_detected_count = 0
+        self.current_face_vector = ""
+
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        img = cv2.flip(img, 1)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, 1.1, 5)
+        self.face_detected_count = len(faces)
+
+        if self.face_detected_count > 0:
+            (x, y, w, h) = faces[0]
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(
+                img, "FACE DETECTED", (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA
+            )
+            self.current_face_vector = f"{x},{y},{w},{h},{datetime.now().hour}"
+        else:
+            self.current_face_vector = ""
+
+        status_text = f"Face(s) Found: {self.face_detected_count}"
+        color = (0, 255, 0) if self.face_detected_count > 0 else (0, 0, 255)
+        cv2.putText(img, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+
+        return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
 # ============================== API Keys and Configuration ==============================
 
 # FIX: USING LATEST VALID KEY AND ENSURING DEFINITIVE ASSIGNMENT.
@@ -1494,171 +1583,6 @@ TEAM_INFO = {
 }
 
 HAS_QR = True
-
-# --- REFACTORED USER DATABASE (Username: Password) ---
-CREDS_PATH = Path("user_creds.json")
-DEFAULT_CREDS = {
-    "prakriti11": "pass123",
-    "ujjwal11": "secure456",
-    "aditya01": "vermasingh01", 
-    "guest": "guest",
-}
-# Function to load and save credentials
-def load_creds():
-    if not CREDS_PATH.exists():
-        save_creds(DEFAULT_CREDS)
-        return DEFAULT_CREDS
-    try:
-        with open(CREDS_PATH, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return DEFAULT_CREDS
-
-def save_creds(creds):
-    try:
-        with open(CREDS_PATH, 'w') as f:
-            json.dump(creds, f, indent=4)
-    except Exception as e:
-        print(f"Error saving credentials: {e}")
-
-VALID_USERS = load_creds()
-# -----------------------------------------------------
-
-# --- New Dynamic Banner Content for Requested Changes ---
-CURRENT_USER_ID_PLACEHOLDER = "aditya01" # Placeholder for unauthenticated rendering
-GEMINI_ENABLED_STATUS = "Gemini 2.5 Flash, OpenAI GPT-3.5-Turbo (Fallback)"
-ALL_TECHNOLOGIES = "Streamlit, Pandas, NumPy, Plotly, Gemini SDK, OpenAI SDK, OCR (Tesseract), ETL/Data Analytics, Time Series (ETS/SMA), Joblib, MiniDB"
-PROMISE_TEXT = "I will not let your single penny waste use me"
-
-# --- 1. DYNAMIC HEADER CSS (UPDATED FOR SPEED) ---
-DYNAMIC_HEADER_CSS = f"""
-<style>
-/* ---------------- DYNAMIC HEADER STYLES (SIMPLIFIED FOR PERFORMANCE) ---------------- */
-.dynamic-header-container {{
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 99999;
-    padding: 10px 20px;
-    margin: 0;
-    
-    /* Neon background (solid for speed) */
-    background: linear-gradient(90deg, {ACCENT_PURPLE} 0%, #8a2be2 100%);
-    box-shadow: 0 0 10px rgba(147, 51, 234, 0.7); /* Reduced glow */
-    border-bottom: 2px solid {ACCENT_CYAN};
-    
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 100px;
-}}
-
-/* Removed hover animations on container */
-
-.header-content {{
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    flex-grow: 1;
-}}
-
-/* Main Title Style */
-.header-title {{
-    font-size: 24px;
-    font-weight: 900;
-    color: #ffffff;
-    letter-spacing: 1px;
-    text-shadow: none; /* REMOVED EXPENSIVE TEXT SHADOW */
-    margin-bottom: 5px;
-}}
-
-/* Subtitle for Tech/AI */
-.header-tech {{
-    font-size: 11px;
-    color: #cccccc;
-    font-weight: 500;
-    margin-top: 5px;
-    max-width: 600px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}}
-
-/* Money Promise Styling (Static for speed) */
-.money-promise-wrap {{
-    margin-top: 5px;
-    font-size: 14px;
-    font-weight: 700;
-    color: {ACCENT_CYAN};
-    text-shadow: none; /* REMOVED EXPENSIVE TEXT SHADOW/GLOW */
-    white-space: nowrap;
-}}
-
-/* STATIC ICONS - REMOVED ROTATION AND PULSE ANIMATION */
-.rotating-brain {{
-    font-size: 40px;
-    filter: drop-shadow(0 0 5px yellow);
-    animation: none;
-}}
-
-/* Hand Waving Animation simplified/removed */
-.chatbot-prakriti .hand {{
-    font-size: 35px;
-    opacity: 1.0;
-    animation: none; /* REMOVED EXPENSIVE HAND WAVE ANIMATION */
-}}
-@keyframes jump-in, @keyframes rotate-glow, @keyframes brain-pulse, @keyframes hand-wave {{
-    /* Ensure all custom animations are inactive or removed */
-    0% {{ transform: none; }}
-    100% {{ transform: none; }}
-}}
-
-/* Override Streamlit's main content area to compensate for the fixed header */
-[data-testid="stAppViewContainer"] > .main {{
-    padding-top: 100px !important; 
-}}
-
-</style>
-"""
-
-# --- 2. DYNAMIC HEADER HTML (STATIC TEXT) ---
-DYNAMIC_HEADER_HTML = f"""
-<div class="dynamic-header-container">
-    <div class="header-content">
-        <div class="header-title">
-            <span style="color: {ACCENT_CYAN};">Personal Finance AI Dashboard</span>
-            <span class="made-in-india-text">({CURRENT_USER_ID_PLACEHOLDER})</span>
-        </div>
-        <div class="money-promise-wrap" id="promise-text-container">
-            {PROMISE_TEXT}
-        </div>
-        <div class="header-tech">
-            AI Models: **{GEMINI_ENABLED_STATUS}** | Technologies: {ALL_TECHNOLOGIES}
-        </div>
-    </div>
-    <div class="header-right">
-        <span class="rotating-brain" title="AI Intelligence">🧠</span>
-        <span style="font-size: 40px; color: gold;" title="Gemini Integrated">🤖★</span>
-        <div class="made-in-india-flag" title="Made in India">
-            <div class="made-in-india-text">A small Made in India</div>
-            <div style="font-size: 20px;">🇮🇳</div>
-        </div>
-        <div class="chatbot-prakriti" onclick="alert('Prakriti AI says: I will not let your single penny waste. Use me!')">
-            <span class="hand">👋</span>
-        </div>
-    </div>
-</div>
-"""
-
-# --- 3. JAVASCRIPT FOR THE JUMPING TEXT ANIMATION ---
-# REMOVED the complex jumping animation logic. Now only sets the static text.
-JUMPING_TEXT_JS = f"""
-<script>
-// The target text is now static in the HTML to prevent performance overhead.
-</script>
-"""
 
 # ============================== Utilities / FX / Sound ==============================
 
@@ -1728,9 +1652,6 @@ def _b64_audio_from_file(path: Path) -> str | None:
 _FALLBACK_WAV_B64 = (
     "UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAAACABYAAABkYXRhAAAAAA"
     "AAAAAAgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
-    "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
-    "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
-    "gP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8AgP8A"
 )
 
 def play_paid_sound(name: str, amount: float) -> None:
@@ -1743,14 +1664,14 @@ def play_paid_sound(name: str, amount: float) -> None:
     html = f"""
       <audio id="payment-sound-{rand_id}" src="{audio_src}" preload="auto" autoplay></audio>
       <script>
-      	document.getElementById('payment-sound-{rand_id}').play().catch(e => console.log('Audio play blocked or failed:', e));
-      	try {{
-      	  const u = new SpeechSynthesisUtterance("{spoken}");
-      	  u.lang = "hi-IN";
-      	  u.rate = 1.0; u.pitch = 1.0;
-      	  window.speechSynthesis.cancel();
-      	  window.speechSynthesis.speak(u);
-      	}} catch(e) {{ console.warn(e); }}
+        document.getElementById('payment-sound-{rand_id}').play().catch(e => console.log('Audio play blocked or failed:', e));
+        try {{
+          const u = new SpeechSynthesisUtterance("{spoken}");
+          u.lang = "hi-IN";
+          u.rate = 1.0; u.pitch = 1.0;
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(u);
+        }} catch(e) {{ console.warn(e); }}
       </script>
     """
     components.html(html, height=0, scrolling=False)
@@ -1758,7 +1679,6 @@ def play_paid_sound(name: str, amount: float) -> None:
 
 def show_coin_rain(seconds: float = 5.0) -> None:
     """Displays the coin rain animation."""
-    # THIS FUNCTION IS NOW DISABLED IN THE MAIN APP BODY FOR PERFORMANCE
     coin_spans = "".join(
         [
             f"<span style='left:{random.randint(5, 95)}%; animation-delay:{random.uniform(0, RAIN_DURATION_SEC/2):.2f}s;'>🪙</span>"
@@ -1771,20 +1691,20 @@ def show_coin_rain(seconds: float = 5.0) -> None:
 /* NEW: Enhanced Coin Animation and Visibility */
 @keyframes coin-pulse {{
     0%, 100% {{
-    	transform: scale(1.0) translateY(0px);
-    	filter: drop-shadow(0 0 8px gold) drop-shadow(0 0 3px orange);
+        transform: scale(1.0) translateY(0px);
+        filter: drop-shadow(0 0 8px gold) drop-shadow(0 0 3px orange);
     }}
     50% {{
-    	transform: scale(1.1) translateY(-2px);
-    	filter: drop-shadow(0 0 12px gold) drop-shadow(0 0 6px orange);
+        transform: scale(1.1) translateY(-2px);
+        filter: drop-shadow(0 0 12px gold) drop-shadow(0 0 6px orange);
     }}
 }}
 .coin-rain {{
-    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
 }}
 .coin-rain span {{
-    position:absolute; top:-50px; font-size:22px; filter:drop-shadow(0 6px 8px rgba(0,0,0,.35));
-    animation: rain 2.2s linear infinite, coin-pulse 2s ease-in-out infinite;
+  position:absolute; top:-50px; font-size:22px; filter:drop-shadow(0 6px 8px rgba(0,0,0,.35));
+  animation: rain 2.2s linear infinite, coin-pulse 2s ease-in-out infinite;
 }}
 @keyframes rain{{0%{{transform:translateY(-60px) rotate(0deg);opacity:0}}
 15%{{opacity:1}}100%{{transform:translateY(120vh) rotate(360deg);opacity:0}}}}
@@ -1961,7 +1881,6 @@ def read_file(file):
             return pd.read_csv(file)
     return pd.read_excel(file)
 
-@st.cache_data # <<< ADDED CACHING >>>
 def normalize(df: pd.DataFrame) -> pd.DataFrame:
     if df is None:
         return pd.DataFrame()
@@ -1980,7 +1899,6 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
         df["date"] = pd.Timestamp.today().date()
     return df
 
-@st.cache_data # <<< ADDED CACHING >>>
 def add_period(df: pd.DataFrame, group_period: str) -> pd.DataFrame:
     t = df.copy()
     t["date"] = pd.to_datetime(t["date"])
@@ -1992,7 +1910,6 @@ def add_period(df: pd.DataFrame, group_period: str) -> pd.DataFrame:
         t["period"] = t["date"].dt.date.astype(str)
     return t
 
-@st.cache_data # <<< ADDED CACHING >>>
 def daily_net_frame(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.shape[0] == 0:
         return pd.DataFrame(columns=["day", "income", "expense", "net_saving"])
@@ -2164,8 +2081,7 @@ def save_transactions(user_id: str, df: pd.DataFrame):
             typ=row["type"],
         )
 
-# --- NEW: AI Financial Plan Logic (Legacy View) ---
-@st.cache_data(ttl=timedelta(hours=1)) # <<< ADDED CACHING >>>
+# --- NEW: AI Financial Plan Logic (Old 50/30/20 View) ---
 def _get_average_monthly_income(df: pd.DataFrame) -> float:
     """Calculates the average monthly income from the DataFrame."""
     if df.empty:
@@ -2183,10 +2099,10 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     st.markdown("""
     <style>
     .fade-line { opacity: 0; background: rgba(255,255,255,0.07); border-left: 4px solid #00f5d4; margin: 6px 0;
-    	          padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
-    	          animation: fadeIn 1.3s ease-in-out forwards; }
+                padding: 10px 12px; border-radius: 10px; color: #ffffff; font-size: 16px; font-weight: 500;
+                animation: fadeIn 1.3s ease-in-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); box-shadow: 0 0 5px #00f5d4; }
-    	                  to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
+                            to { opacity: 1; transform: translateY(0); box-shadow: 0 0 20px #00f5d4; } }
     .plan-title { color: #8e2de2; text-align: center; margin-bottom: 20px; }
     .speak-button { background:#8e2de2;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600; }
     </style>
@@ -2198,19 +2114,15 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     avg_income = _get_average_monthly_income(df)
     default_salary = 60000.0 if avg_income == 0.0 else round(avg_income)
 
-    # FIX 3: Ensure default salary meets min_value to prevent StreamlitAPIException
-    MIN_SALARY_ALLOWED = 5000.0
-    default_salary = max(MIN_SALARY_ALLOWED, default_salary)
-
-    # FIX: Initialize session state key only if it doesn't exist
+    # --- FIX 1: Initialize session state key only if it doesn't exist ---
     if "ai_plan_salary" not in st.session_state:
         st.session_state["ai_plan_salary"] = int(default_salary)
     
-    # Use key to manage state and remove the conflicting 'value' parameter
+    # --- FIX 2: Use key to manage state and remove the conflicting 'value' parameter ---
     st.number_input(
         "💰 Enter/Confirm your Monthly Income (₹):",
-        min_value=int(MIN_SALARY_ALLOWED),
-        # value=int(default_salary),    <--- REMOVED TO PREVENT StreamlitAPIException
+        min_value=5000,
+        # value=int(default_salary),  <--- REMOVED TO PREVENT StreamlitAPIException
         step=1000,
         key="ai_plan_salary"
     )
@@ -2224,21 +2136,21 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
     )
 
     if st.button("🚀 Generate My AI Savings Strategy", use_container_width=True):
-        if salary < MIN_SALARY_ALLOWED:
-            st.error(f"Monthly income must be at least ₹{int(MIN_SALARY_ALLOWED)} to generate a plan.")
+        if salary < 5000:
+            st.error("Monthly income must be at least ₹5000 to generate a plan.")
             return
 
         with st.spinner("🤖 Gemini 2.5 is analyzing your profile and creating a strategy..."):
             prompt = f"""
-            You are a professional financial advisor named PRAKRITI AI.
-            The user earns ₹{salary:,.0f} per month and has a goal: '{goal if goal else 'None'}'.
-            Provide a real-life savings strategy.
-            Suggest:
-            1. Monthly breakdown and ideal percentages for four categories: **Essentials (50%)**, **Savings (25%)**, **Investments (20%)**, and **Lifestyle/Flex (5%)**.
-            2. 3-4 quick, actionable financial tips related to their goal (if specified) or their income level.
-            3. A summary of the breakdown in a bulleted list format.
-            Be concise (max 300 words), practical, realistic, and easy to follow. Include emojis.
-            """
+            You are a professional financial advisor named PRAKRITI AI.
+            The user earns ₹{salary:,.0f} per month and has a goal: '{goal if goal else 'None'}'.
+            Provide a real-life savings strategy.
+            Suggest:
+            1. Monthly breakdown and ideal percentages for four categories: **Essentials (50%)**, **Savings (25%)**, **Investments (20%)**, and **Lifestyle/Flex (5%)**.
+            2. 3-4 quick, actionable financial tips related to their goal (if specified) or their income level.
+            3. A summary of the breakdown in a bulleted list format.
+            Be concise (max 300 words), practical, realistic, and easy to follow. Include emojis.
+            """
             context_str = (
                 f"You are a financial coach. The user is {CURRENT_USER_ID} and their average monthly income is {money(avg_income)}."
             )
@@ -2248,10 +2160,10 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
             st.markdown("### 🌟 Your Personalized Financial Plan")
             st.markdown(
                 f"""
-                <div style='background: {DARK_CARD_BG}; border-left: 5px solid {ACCENT_PURPLE}; padding: 15px; border-radius: 10px; margin-top: 15px; color: #ffffff; box-shadow: 0 0 10px {ACCENT_PURPLE}40;'>
-                {advice}
-                </div>
-                """,
+                <div style='background: rgba(142, 45, 226, 0.1); border-left: 5px solid #8e2de2; padding: 15px; border-radius: 10px; margin-top: 15px; color: #1e1e1e;'>
+                {advice}
+                </div>
+                """,
                 unsafe_allow_html=True
             )
             st.subheader("📊 Proposed 50/25/20/5 Rule Distribution")
@@ -2269,9 +2181,6 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
                 fig_pie.update_layout(
                     title_text=f"Monthly Distribution of ₹{salary:,.0f}",
                     template="plotly_dark",
-                    paper_bgcolor=DARK_CARD_BG,
-                    plot_bgcolor=DARK_CARD_BG,
-                    font_color="#ffffff",
                     height=450
                 )
                 st.plotly_chart(fig_pie, use_container_width=True)
@@ -2282,20 +2191,20 @@ def _ai_financial_plan_view(df: pd.DataFrame) -> None:
             safe_advice_js = advice.replace('"', '\\"').replace("\n", " ")
             st.markdown(
                 f"""
-                <button onclick="speak_advice()" class='speak-button' id='speak-advice-btn' style='background:{ACCENT_PURPLE};'>🔊 Speak Advice</button>
-                <script>
-                function speak_advice() {{
-                    const text = "{safe_advice_js}";
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = "en-IN";
-                    utterance.rate = 1.05;
-                    utterance.pitch = 1.05;
-                    utterance.volume = 1.0;
-                    window.speechSynthesis.cancel();
-                    window.speechSynthesis.speak(utterance);
-                }}
-                </script>
-                """,
+                <button onclick="speak_advice()" class='speak-button' id='speak-advice-btn'>🔊 Speak Advice</button>
+                <script>
+                function speak_advice() {{
+                    const text = "{safe_advice_js}";
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = "en-IN";
+                    utterance.rate = 1.05;
+                    utterance.pitch = 1.05;
+                    utterance.volume = 1.0;
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.speak(utterance);
+                }}
+                </script>
+                """,
                 unsafe_allow_html=True
             )
             st.caption("Click to have the advice read out loud.")
@@ -2344,119 +2253,6 @@ if "DB" not in st.session_state:
     st.session_state["DB"] = MiniDB.load()
 DB: MiniDB = st.session_state["DB"]
 
-# ============================== REFACTORED LOGIN LOGIC ==============================
-
-def _login_view() -> None:
-    """Renders the simple Username/Password login page."""
-    st.markdown(
-        """
-        <style>
-        /* Global App Styling for Professional Look */
-        /* Overridden by QCLAY CSS: [data-testid="stAppViewContainer"] > .main {background: linear-gradient(145deg, #e4e7ff, #f0f2f6); color: #1e1e1e;} */
-        /* Custom CSS for Login Card */
-        .login-card-container {
-            max-width: 500px;
-            margin: 50px auto;
-            padding: 30px;
-            border-radius: 16px;
-            background: #1f1f1f; /* Dark card background */
-            color: #ffffff;
-            box-shadow: 0 10px 30px rgba(138, 43, 226, 0.4), 0 0 15px #9333ea60; /* Glow shadow */
-            border: 1px solid #333333;
-            animation: slideIn 0.8s ease-out;
-        }
-        @keyframes slideIn { 0% { opacity: 0; transform: translateY(-50px); } 100% { opacity: 1; transform: translateY(0); } }
-        .login-header {
-            text-align: center;
-            color: #00ffc8; /* Neon color */
-            font-size: 32px;
-            font-weight: 800;
-            margin-bottom: 25px;
-            letter-spacing: 0.5px;
-            text-shadow: 0 0 10px #00ffc840;
-        }
-        .stButton button {
-            background-color: #9333ea; /* Purple Accent */
-            color: white;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-        .stButton button:hover {
-            transform: scale(1.02);
-            box-shadow: 0 4px 10px rgba(147, 51, 234, 0.6);
-        }
-        /* Input fields in the login form will inherit the custom QCLAY styles */
-        </style>
-        <div class="login-card-container">
-            <div class="login-header">📈 Cashflow Crew Capital</div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    col_login, col_register = st.columns(2)
-    
-    # --- Existing User Login ---
-    with col_login:
-        with st.form("login_form"):
-            st.subheader("Existing User Login")
-            username = st.text_input("Username", key="login_user_input")
-            password = st.text_input("Password", type="password", key="login_pass_input")
-            login_submitted = st.form_submit_button("Login to Dashboard", use_container_width=True)
-
-            if login_submitted:
-                if username in VALID_USERS and VALID_USERS[username] == password:
-                    st.session_state["auth_ok"] = True
-                    st.session_state["auth_user"] = username
-                    st.session_state["chat_history"] = []
-                    # Initialize user settings on first login
-                    if username not in st.session_state.get("user_settings", {}):
-                        st.session_state.setdefault("user_settings", {})[username] = {
-                            "theme_color": ACCENT_PURPLE,
-                            "bg_image": None,
-                            "promise": "I promise that I will save 100 rupees per day"
-                        }
-                    st.success(f"🎉 Login successful! Welcome back, **{username}**.")
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid Username or Password. Hint: Try 'guest' / 'guest'.")
-
-    # --- New User Registration ---
-    with col_register:
-        with st.form("register_form"):
-            st.subheader("New User Registration")
-            new_username = st.text_input("New Username", key="register_user_input")
-            new_password = st.text_input("New Password", type="password", key="register_pass_input")
-            register_submitted = st.form_submit_button("Create Account & Login", use_container_width=True)
-            
-            if register_submitted:
-                if not new_username or not new_password:
-                    st.error("Username and Password cannot be empty.")
-                elif new_username in VALID_USERS:
-                    st.error(f"User '{new_username}' already exists. Please log in.")
-                else:
-                    # Store new user credentials persistently
-                    VALID_USERS[new_username] = new_password
-                    save_creds(VALID_USERS) 
-                    
-                    # Log in the new user
-                    st.session_state["auth_ok"] = True
-                    st.session_state["auth_user"] = new_username
-                    st.session_state["chat_history"] = []
-                    
-                    # Initialize settings for the new user
-                    st.session_state.setdefault("user_settings", {})[new_username] = {
-                        "theme_color": ACCENT_PURPLE,
-                        "bg_image": None,
-                        "promise": "I promise to start my financial journey strong!"
-                    }
-
-                    st.success(f"✅ Account created and login successful for **{new_username}**!")
-                    st.rerun()
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-# ----------------------------------------------------------------------
-
-
 if "paid_orders_applied" not in st.session_state:
     st.session_state["paid_orders_applied"] = set()
 if "thinking" not in st.session_state:
@@ -2487,17 +2283,160 @@ if "ca_plan_explanation" not in st.session_state:
 if "ca_plan_tts_summary" not in st.session_state:
     st.session_state["ca_plan_tts_summary"] = None
 
-# --- NEW STATE FOR USER SETTINGS ---
-if "user_settings" not in st.session_state:
-    # Load default settings for the initial user or general fallback
-    st.session_state["user_settings"] = {
-        "guest": {
-            "theme_color": ACCENT_PURPLE,
-            "bg_image": None,
-            "promise": "I promise that I will save 100 rupees per day"
-        }
+
+# ============================== Login & User Management (FACE DETECTOR) ==============================
+
+VALID_USERS = {
+    "prakriti11": "face_biometric_code_A",
+    "ujjwal11": "face_biometric_code_B",
+    "aditya11": "face_biometric_code_C",
+    "guest1": "face_biometric_code_D",
+    "guest2": "face_biometric_code_E",
+    "guest3": "face_biometric_code_F",
+    "guest4": "face_biometric_code_G",
+    "guest5": "face_biometric_code_H",
+    "guest6": "face_biometric_code_I",
+}
+
+def _get_all_users(db: MiniDB) -> set:
+    db_users = {t.user_id for t in db._tx.values()}
+    return set(VALID_USERS.keys()) | db_users
+
+if "ml_login_step" not in st.session_state:
+    st.session_state["ml_login_step"] = 1
+if "ml_face_code_live" not in st.session_state:
+    st.session_state["ml_face_code_live"] = ""
+
+def _login_view() -> None:
+    # UPDATED CSS FOR LOGIN VIEW
+    st.markdown(
+        """
+    <style>
+    /* Light Purple/Blue Background */
+    [data-testid="stAppViewContainer"] > .main {background-color: #f0f2f6; background: linear-gradient(145deg, #e4e7ff, #f0f2f6); color: #1e1e1e;}
+    .login-card-container { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+    .login-card-inner {
+        padding: 30px; border-radius: 16px;
+        background: #ffffff; /* White card */
+        border: 1px solid #d4c1f5;
+        box-shadow: 0 4px 15px rgba(106, 90, 205, 0.2), 0 0 10px rgba(138, 43, 226, 0.1);
+        transition: all 0.3s;
+        color: #1e1e1e;
     }
-# -----------------------------------
+    .login-card-inner:hover { box-shadow: 0 6px 20px rgba(106, 90, 205, 0.3); }
+    .stSelectbox div { background-color: #f0f2f6 !important; color: #1e1e1e !important; }
+    .stSelectbox button { color: #6a5acd !important; }
+    .navbar {
+        position: sticky; top: 0; z-index: 1000; padding: 12px 18px; margin: 0 0 18px 0;
+        background: linear-gradient(90deg, #6a5acd 0%, #8a2be2 100%); /* Purple gradient */
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+        border: 1px solid rgba(255,255,255,0.35);
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .nav-title { font-weight: 800; font-size: 24px; color:#ffffff; letter-spacing: .5px; }
+    .nav-sub { color:#ddddff; font-size:13px; margin-top:-2px; }
+    .stSuccess { background-color: #e6f7e9 !important; border-left: 5px solid #22c55e !important; color: #1e1e1e !important; }
+    .stError { background-color: #f7e6e6 !important; border-left: 5px solid #ef4444 !important; color: #1e1e1e !important; }
+    </style>
+    <div class="navbar">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+        <div>
+          <div class="nav-title">🔐 Finance Analyzer — BIOMETRIC FACE LOGIN</div>
+          <div class="nav-sub">Face Detection for Simplified Biometric Authentication</div>
+        </div>
+      </div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    all_users = sorted(list(_get_all_users(DB)))
+
+    st.subheader("Live Face Recognition")
+    st.warning("Grant camera access. Look directly at the camera to allow face detection and capture.")
+
+    ctx = webrtc_streamer(
+        key="ml_webcam_input",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+        video_processor_factory=FaceDetectorTransformer,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
+
+    if ctx.video_processor:
+        face_detected_count = ctx.video_processor.face_detected_count
+        current_face_vector = ctx.video_processor.current_face_vector
+    else:
+        face_detected_count = 0
+        current_face_vector = ""
+
+    st.markdown('<div class="login-card-container">', unsafe_allow_html=True)
+
+    # 1. EXISTING USER LOGIN
+    with st.container():
+        st.markdown('<div class="login-card-inner">', unsafe_allow_html=True)
+        st.subheader("Existing User Login (Face Scan)")
+
+        u_select = st.selectbox("Select Username", options=all_users, key="user_select")
+        target_code = VALID_USERS.get(u_select, "")
+
+        if face_detected_count > 0:
+            st.success("Face detected! Click 'Scan and Login'.")
+        else:
+            st.error("No face detected. Please look at the camera.")
+
+        if st.button("Scan and Login", use_container_width=True):
+            if face_detected_count == 0:
+                st.error("❌ **Detection Error:** No face detected to scan.")
+            elif face_detected_count > 1:
+                st.error("❌ **Detection Error:** Too many faces detected. Please ensure only one person is visible.")
+            elif not target_code:
+                st.error("❌ **Registration Error:** User not fully registered.")
+            else:
+                st.session_state["auth_ok"] = True
+                st.session_state["auth_user"] = u_select
+                st.session_state["chat_history"] = []
+                st.success(f"🎉 **Face Biometric Login Success!** Welcome, **{u_select}**.")
+                st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # 2. NEW USER REGISTRATION
+    with st.container():
+        st.markdown('<div class="login-card-inner">', unsafe_allow_html=True)
+        st.subheader("New User Registration (Enroll Face)")
+
+        u_new = st.text_input("New Username", key="user_new")
+
+        if u_new in VALID_USERS:
+            st.info(f"User **{u_new}** is already enrolled.")
+        elif face_detected_count > 0:
+            st.info("Face detected! Click 'Enroll Face' to save your biometric data.")
+        else:
+            st.error("Enrollment requires a face detected in the camera.")
+
+        if st.button("Enroll Face & Create User", key="enroll_button", use_container_width=True):
+            new_user_id = u_new.strip()
+            if not new_user_id:
+                st.error("New Username cannot be empty.")
+            elif new_user_id in _get_all_users(DB):
+                st.error(f"User **{new_user_id}** already exists.")
+            elif face_detected_count == 0:
+                st.error("❌ **Enrollment Error:** No face detected to enroll.")
+            else:
+                VALID_USERS[new_user_id] = f"face_biometric_code_{new_user_id}"
+                st.session_state["auth_ok"] = True
+                st.session_state["auth_user"] = new_user_id
+                st.session_state["chat_history"] = []
+                st.success(f"🎉 **New Face Biometric User Registered!** Welcome, **{new_user_id}**.")
+                st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)  # End login-card-container
+    st.markdown("---")
+    st.caption(f"Current Biometric Code (Face Position): {current_face_vector or 'N/A'}")
 
 
 if "auth_ok" not in st.session_state:
@@ -2509,94 +2448,235 @@ if not st.session_state["auth_ok"]:
     st.stop()
 
 CURRENT_USER_ID = st.session_state["auth_user"]
-# Fetch current user settings, defaulting to a safe dict if missing
-USER_SETTINGS = st.session_state.get("user_settings", {}).get(CURRENT_USER_ID, {
-    "theme_color": ACCENT_PURPLE,
-    "bg_image": None,
-    "promise": "I promise that I will save 100 rupees per day"
-})
 
 # ---------- Post-Login Setup ----------
 if "coin_rain_show" not in st.session_state:
     st.session_state["coin_rain_show"] = True
-
-# Dynamic CSS injection based on user settings
-# Inject the aggressive QCLAY CSS first
-st.markdown(CUSTOM_QCLAY_CSS, unsafe_allow_html=True)
-
-# Then inject user-specific overrides
 st.markdown(
-    f"""
+    """
 <style>
-/* 1. DYNAMIC THEME COLOR AND BACKGROUND */
-:root {{
-    --main-theme-color: {USER_SETTINGS['theme_color']};
-}}
-
-.navbar {{
-    background: linear-gradient(90deg, var(--main-theme-color) 0%, #8a2be2 100%) !important;
-}}
-.stButton button {{
-    background-color: var(--main-theme-color);
-}}
-.stButton button:hover {{
-    transform: scale(1.02);
-    box-shadow: 0 4px 10px rgba(106, 90, 205, 0.4); /* Base hover shadow */
-}}
-.promise {{
-    color: {ACCENT_CYAN} !important; /* Force promise text to neon cyan */
-    font-weight: 700 !important;
-    text-shadow: 0 0 5px rgba(0, 255, 200, 0.5); /* Add subtle glow */
-}}
-
-/* Set dynamic background image/animation */
-[data-testid="stAppViewContainer"] > .main {{
-    background: {f"url({USER_SETTINGS['bg_image']})" if USER_SETTINGS['bg_image'] and USER_SETTINGS['bg_image'] != 'uploaded' else DEEP_BG}; /* Use deep dark bg or image */
-    background-size: cover;
-    background-attachment: fixed;
-    color: #ffffff; /* Ensure text color is white on dark background */
-}}
-
-/* Custom styling for the navbar title */
-.nav-title-custom {{
-    font-weight: 800;
-    font-size: 24px;
-    color: #ffffff;
-    letter-spacing: 0.5px;
-    animation: bulgeGlow 2s ease-in-out infinite; /* Apply glow/bulge animation */
-}}
-@keyframes bulgeGlow {{
-    0% {{ transform: scale(1.0); text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); }}
-    50% {{ transform: scale(1.03); text-shadow: 0 0 15px rgba(255, 255, 255, 0.8), 0 0 5px var(--main-theme-color); }}
-    100% {{ transform: scale(1.0); text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); }}
-}}
-
-/* General styling overrides for the premium look (from the skeleton) */
-html, body, [data-testid="stAppViewContainer"] {{
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
-}}
+/* Reset basic page styles for the wide view */
+html, body, [data-testid="stAppViewContainer"] {
+  background: #f0f2f6;
+  background: linear-gradient(145deg, #e4e7ff, #f0f2f6);
+  color: #1e1e1e;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
 
 /* 🚀 AGGRESSIVE FULL-WIDTH AND CENTER ALIGNMENT FIXES */
-[data-testid="stAppViewContainer"] > .main {{
-    /* This padding-top is now controlled by the DYNAMIC_HEADER_CSS */
-    padding: 0px !important; 
+[data-testid="stAppViewContainer"] > .main {
+    padding: 0px !important;
     margin: 0 auto !important;
-}}
-.main > div {{
+}
+.main > div {
     max-width: 100% !important; 
     margin: 0 auto !important;
     padding: 1rem 1rem !important; 
-}}
+}
+[data-testid="stBlockContainer"], .block-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+}
+[data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"] {
+    max-width: 100% !important;
+    padding: 0 !important;
+}
+[data-testid="stBlock"] {
+    max-width: 100% !important;
+    padding: 0 !important;
+}
+div.block-container {
+    max-width: 100% !important;
+    padding: 0 1rem 1rem !important;
+}
+[data-testid="column"] {
+    padding: 0 5px !important; 
+}
+/* END AGGRESSIVE FIXES */
 
+
+/* 🌟 TAB ENLARGEMENT AND GLOW EFFECT (New Rules B1 & B2) */
+
+/* B1: ENLARGE TABS: Increase size, padding, and add a subtle box shadow */
+[data-testid="stTabs"] button[role="tab"] {
+    font-size: 16px !important; /* Enlarge text */
+    padding: 12px 18px 12px 18px !important; /* Increase padding around text */
+    min-height: 45px !important; /* Ensure minimum height */
+    box-shadow: 0 2px 5px rgba(106, 90, 205, 0.1); /* Subtle shadow lift */
+    transition: all 0.2s ease-in-out; /* Smooth transition for hover effect */
+    font-weight: 700 !important; /* Make the text bolder */
+}
+
+/* B2: GLOW ON HOVER: Increase shadow/lift and change color when hovering */
+[data-testid="stTabs"] button[role="tab"]:hover {
+    color: #8a2be2 !important; /* Change text color to purple */
+    border-bottom: 2px solid #8a2be2 !important; /* Highlight bottom border */
+    box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4); /* Stronger glow/lift effect */
+    transform: translateY(-2px); /* Slight lift */
+}
+
+/* Ensure standard components have good contrast */
+h1, h2, h3, h4, h5, h6, .stMarkdown, .stText {
+    color: #1e1e1e !important; 
+}
+
+/* --- Your Existing Styles Below (Retained for functionality/design) --- */
+
+.navbar { position: sticky; top: 0; z-index: 1000; padding: 12px 18px; margin: 0 0 18px 0; border-radius: 14px;
+  background: linear-gradient(90deg, #6a5acd 0%, #8a2be2 100%); 
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+  border: 1px solid rgba(255,255,255,0.35); display: flex; justify-content: space-between; align-items: center; }
+.nav-title-wrap { display: flex; align-items: center; gap: 10px; }
+.cashflow-girl { font-size: 30px; animation: float-money 2s ease-in-out infinite; position: relative; }
+@keyframes float-money { 0% { transform: translateY(0px) rotate(0deg); } 25% { transform: translateY(-5px) rotate(5deg); }
+  50% { transform: translateY(0px) rotate(0deg); } 75% { transform: translateY(-5px) rotate(-5deg); } 100% { transform: translateY(0px) rotate(0deg); } }
+.nav-title { font-weight: 800; font-size: 24px; color:#ffffff; letter-spacing: .5px; }
+.nav-sub { color:#ddddff; font-size:13px; margin-top:-2px; }
+.coin-wrap { position: relative; height: 60px; margin: 6px 0 0 0; overflow: hidden; }
+/* Applied coin-pulse to all .coin elements */
+@keyframes coin-pulse {
+    0%, 100% {{
+        transform: scale(1.0) translateY(0px);
+        filter: drop-shadow(0 0 8px gold) drop-shadow(0 0 3px orange);
+    }}
+    50% {{
+        transform: scale(1.1) translateY(-2px);
+        filter: drop-shadow(0 0 12px gold) drop-shadow(0 0 6px orange);
+    }}
+}
+.coin { position:absolute; top:-50px; font-size:24px; 
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); 
+    animation: drop 4s linear infinite, coin-pulse 2s ease-in-out infinite; }
+.coin:nth-child(2){left:15%; animation-delay:.6s}
+.coin:nth-child(3){left:30%; animation-delay:.1s}
+.coin:nth-child(4){left:45%; animation-delay:.9s}
+.coin:nth-child(5){left:60%; animation-delay:1.8s}
+.coin:nth-child(6){left:75%; animation-delay:.3s}
+.coin:nth-child(7){left:90%; animation-delay:.2s}
+@keyframes drop { 0%{ transform: translateY(-60px) rotate(0deg); opacity:0 } 10%{ opacity:1 } 100%{ transform: translateY(120px) rotate(360deg); opacity:0 } }
+.card {border-radius:16px; background:#ffffff; 
+  padding:16px; box-shadow: 0 4px 15px rgba(106, 90, 205, 0.2); border: 1px solid #d4c1f5; color: #1e1e1e;}
+.metric {font-size:18px; font-weight:700}
+.bot {background:#f0f2f6; color:#1e1e1e; padding:10px 12px; border-radius:10px; border:1px solid #d4c1f5}
+.streak-card{ border-radius:16px; padding:16px; margin-top:10px; background:#ffffff; 
+  border:1px solid #d4c1f5; box-shadow:0 4px 15px rgba(106, 90, 205, 0.2); color: #1e1e1e;}
+.piggy-wrap{ position:relative; height:84px; display:flex; align-items:center; gap:16px }
+.piggy{ font-size:58px; filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); }
+.piggy.dim{ opacity:.55; filter: grayscale(0.6) }
+.coin-fall{ position:absolute; left:62px; top:-12px; font-size:22px; animation: fall 1.8s linear infinite; }
+.coin-fall:nth-child(2){ left:84px; animation-delay:.4s }
+.coin-fall:nth-child(3){ left:46px; animation-delay:.9s }
+@keyframes fall { 0%{ transform: translateY(-30px) rotate(0deg); opacity:0 } 15%{ opacity:1 } 100%{ transform: translateY(85px) rotate(360deg); opacity:0 } }
+.streak-metric{ font-weight:800; font-size:26px }
+.badge-ok{ background:#6a5acd; color:white; padding:4px 10px; border-radius:999px; font-size:12px }
+.profile-wrap{display:flex;align-items:center;justify-content:flex-end}
+.profile-pic{ width:70px;height:70px;border-radius:50%;object-fit:cover; box-shadow:0 6px 20px rgba(0,0,0,.35); border:2px solid #25D366; }
+.upi-qr-wrap {
+  position: relative; border-radius: 12px; padding: 10px;
+  background: rgba(138, 43, 226, 0.1);
+  border: 1px solid rgba(138, 43, 226, 0.5);
+  box-shadow: 0 0 15px rgba(138, 43, 226, 0.3);
+  animation: qr-glow 2s infinite alternate, qr-flicker 1.5s step-end infinite;
+}
+@keyframes qr-glow {
+  0% { box-shadow: 0 0 10px rgba(138, 43, 226, 0.2); transform: scale(1); }
+  50% { transform: scale(1.01); }
+  100% { box-shadow: 0 0 20px rgba(138, 43, 226, 0.5); transform: scale(1); }
+}
+@keyframes qr-flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.9; } }
+.promise{ font-weight:900; font-size:20px; letter-spacing:.3px; color:#6a5acd; text-align:center; margin:8px 0 2px 0;
+  animation: none; } 
+.callout-box-vfa { background: #8a2be2; color: white; padding: 8px 12px; border-radius: 8px; font-weight: 600; margin-top: 15px; display: flex; align-items: center; gap: 10px; animation: none; }
+.animated-arrow-vfa { font-size: 24px; animation: pulsing_arrow 1.5s infinite; display: inline-block; }
+.stSuccess { background-color: #e6f7e9 !important; border-left: 5px solid #22c55e !important; color: #1e1e1e !important; }
+.stInfo { background-color: #e6f1ff !important; border-left: 5px solid #6a5acd !important; color: #1e1e1e !important; }
+
+/* FIXES FOR TEXT CONTRAST IN THE AI PLAN */
+.stApp div[data-testid^="stExpander"] * { color: #1e1e1e !important; }
+.stApp div[style*="rgba(142, 45, 226, 0.1)"] * { color: #1e1e1e !important; } 
+
+/* Fixes for dark charts displayed in the dark theme setting */
+.modebar, .c-modebar { background: #1e1e1e; }
+.js-plotly-plot { background: #ffffff !important; }
+
+/* Custom radio button styles for multi-color */
+.multicolor-radio > div[data-testid="stRadio"] label:nth-child(1) span { background-color: #ffeb3b; color: #1e1e1e; border-color: #ffeb3b; } 
+.multicolor-radio > div[data-testid="stRadio"] label:nth-child(2) span { background-color: #ff9800; color: white; border-color: #ff9800; } 
+.multicolor-radio > div[data-testid="stRadio"] label:nth-child(3) span { background-color: #2196f3; color: white; border-color: #2196f3; } 
+
+.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(1) span { background-color: #4caf50; color: white; border-color: #4caf50; } 
+.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(2) span { background-color: #ff9800; color: white; border-color: #ff9800; } 
+.multicolor-radio-commute > div[data-testid="stRadio"] label:nth-child(3) span { background-color: #f44336; color: white; border-color: #f44336; } 
+
+.multicolor-radio div[data-testid="stRadio"] label span,
+.multicolor-radio-commute div[data-testid="stRadio"] label span {
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    transition: all 0.2s;
+}
+.multicolor-radio div[data-testid="stRadio"] input:checked + div > span,
+.multicolor-radio-commute div[data-testid="stRadio"] input:checked + div > span {
+    border: 3px solid #6a5acd !important; 
+    box-shadow: 0 0 10px rgba(106, 90, 205, 0.7);
+}
 </style>
 """,
     unsafe_allow_html=True,
 )
 if st.session_state["coin_rain_show"]:
-    # Using the separate show_coin_rain function for animation
-    # TEMPORARILY DISABLED for speed:
-    # show_coin_rain(RAIN_DURATION_SEC)
-    pass
+    show_coin_rain(RAIN_DURATION_SEC)
+
+CURRENT_USER_ID = st.session_state["auth_user"]
+
+# ---------- Navbar ----------
+colA, colB = st.columns([4, 0.6])
+with colA:
+    st.markdown(
+        f"""
+    <div class="navbar">
+      <div class="nav-title-wrap">
+        <span class="cashflow-girl">👩‍💰💸</span>
+        <div>
+          <div class="nav-title">📈💰📊 Personal Finance AI Dashboard <br> <span style="font-size:18px;">Cashflow Crew ({CURRENT_USER_ID})</span></div>
+          <div class="nav-sub">Visualize expenses, savings & investments — premium, Power BI–style UI</div>
+        </div>
+      </div>
+      <div class="coin-wrap">
+        <span class="coin">🪙</span><span class="coin">💰</span><span class="coin">🪙</span>
+        <span class="coin">💰</span><span class="coin">🪙</span><span class="coin">💰</span><span class="coin">🪙</span>
+      </div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with colB:
+    st.markdown("<div class='profile-wrap'>", unsafe_allow_html=True)
+    sound_status = "🔊 ON" if not st.session_state.get("sound_muted", False) else "🔇 OFF"
+    if st.button(sound_status, key="toggle_sound", help="Toggle payment notification sound"):
+        st.session_state["sound_muted"] = not st.session_state.get("sound_muted", False)
+        st.rerun()
+    if PROFILE64:
+        st.markdown(
+            f"""<img class="profile-pic" src="data:image/jpg;base64,{PROFILE64}" />""",
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+if HAS_GEMINI_SDK:
+    st.success("🎉 **Now integrated with GEMINI!** Access intelligent financial guidance via the Smart Chatbot and AI Plan.")
+else:
+    st.error("⚠️ **GEMINI SDK Missing:** Chatbot intelligence is disabled. Please run `pip install google-genai`.")
+
+if "promise_text" not in st.session_state:
+    st.session_state["promise_text"] = "I promise that I will save 100 rupees per day"
+
+st.markdown(f"<div class='promise'>{st.session_state['promise_text']}</div>", unsafe_allow_html=True)
+new_p = st.text_input("Change promise line", st.session_state["promise_text"])
+if new_p != st.session_state["promise_text"]:
+    st.session_state["promise_text"] = new_p
+    st.rerun()
 
 # --- Load data outside of tabs ---
 db_txns = DB.list_txns(CURRENT_USER_ID)
@@ -2617,38 +2697,43 @@ except Exception as e:
     st.error(f"Error normalizing data: {e}. Please check column names.")
     st.stop()
 
-# --- Tabs ---
-tab_dashboard, tab_stock, tab_plan, tab_city, tab_ca_plan, tab_tools = st.tabs([
+# --- app.py (Tab Definition Section) ---
+# --- Replace it with this corrected structure ---
+# --- newapp.py (Around Line 2709) ---
+
+# --- newapp.py (Correct Tab Definition around line 2709) ---
+
+tab_dashboard, tab_stock, tab_plan, tab_city, tab_ca_plan, tab_tools, tab_fresher_aio = st.tabs([
     "💰 Personal Dashboard",
-    "📈 Real-time Stock Data (AlphaVantage)",
+    "📈 Real-time Stock Data (Alphavantage)",
     "🎯 AI Financial Plan",
     "🏙️ City Affordability",
-    "🧑‍💼 Personal CA Blueprint", # NEW TAB
-    "🧰 Settings & Tools" # Renamed tab
+    "🧑‍💼 Personal CA Blueprint",
+    "🧰 Tools (Edit • Backup • Dedupe)",
+    "⭐ All-in-One Fresher Advisor",  # <--- NEW TAB NAME
 ])
 
-# ---------- DYNAMIC HEADER / BANNER (REPLACES OLD NAVBAR) ----------
 
-# Update CURRENT_USER_ID_PLACEHOLDER with the authenticated user ID
-DYNAMIC_HEADER_HTML = DYNAMIC_HEADER_HTML.replace(CURRENT_USER_ID_PLACEHOLDER, CURRENT_USER_ID)
+# --- Financial Planning Tab (Existing) ---
+with tab_plan:
+    _ai_financial_plan_view(df)
 
-# Inject CSS and HTML for the new fixed banner
-st.markdown(DYNAMIC_HEADER_CSS, unsafe_allow_html=True)
-st.markdown(DYNAMIC_HEADER_HTML, unsafe_allow_html=True)
+# >>> PERSONAL CA BLUEPRINT (Existing) <<<
+with tab_ca_plan:
+    render_ca_plan_tab(df)
 
-# Inject JavaScript for the jumping text animation
-components.html(JUMPING_TEXT_JS, height=0)
+# --- City Affordability Tab (Existing) ---
+with tab_city:
+    render_city_affordability_tab()
+# 2. Insert the content block for the new feature BEFORE the dashboard content starts.
 
+with tab_fresher_aio: # Use the variable defined immediately above
+    st.info("Loading Consolidated Fresher Advisor and Savings Tool...")
+    # Call the single function that contains all the logic
+    # Assumes 'df' and 'CURRENT_USER_ID' are available globally
+    render_all_in_one_fresher_advisor(st, user_id=CURRENT_USER_ID, df=df)
 
-if HAS_GEMINI_SDK:
-    st.info("🎉 **Now integrated with GEMINI!** Access intelligent financial guidance via the Smart Chatbot and AI Plan.")
-else:
-    st.error("⚠️ **GEMINI SDK Missing:** Chatbot intelligence is disabled. Please run `pip install google-genai`.")
-
-# NOTE: The personalized promise line is now dynamically generated in the header JS/HTML
-# The old promise display logic is removed here.
-# ------------------------------------------------------------------
-
+# 3. Now, the rest of the application's original tabs must continue below this:
 with tab_dashboard:
     tb1, tb2, tb3, tb4, tb5, tb6, tb7 = st.columns([1.6, 1.4, 1.4, 1.8, 1.2, 1, 1.4])
     with tb1:
@@ -2687,32 +2772,48 @@ with tab_dashboard:
     with tb5:
         numeric_col = st.selectbox("Numeric (scatter/hist)", ["amount"], index=0)
     with tb6:
-        # LOGOUT BUTTON
         if st.button("Logout", key="logout_1"):
-            # Clear critical session state vars to enforce login
-            for k in ("auth_ok", "auth_user", "chat_history"):
+            for k in (
+                "auth_ok",
+                "auth_user",
+                "chat_history",
+                "coin_rain_show",
+                "coin_rain_start",
+                "longest_streak_ever",
+                "promise_text",
+                "last_quote",
+                "daily_data",
+                "DB",
+                "ml_login_step",
+                "ml_face_code_live",
+                "user_budgets",
+                "weather_city",
+                "weather_data",
+                "global_budgets",
+                "health_score_data",
+                "goal_target", # Clear goal data
+                "goal_date",
+                "goal_current",
+                "ca_plan_json", # Clear new state
+                "ca_plan_explanation",
+                "ca_plan_tts_summary"
+            ):
                 st.session_state.pop(k, None)
             st.rerun()
     with tb7:
         st.markdown("Weather City")
-        new_city = st.text_input(" ", USER_SETTINGS.get("weather_city", "Prayagraj"), label_visibility="collapsed")
-        if new_city != USER_SETTINGS.get("weather_city", "Prayagraj"):
-            USER_SETTINGS["weather_city"] = new_city
-            st.session_state["weather_settings_update"] = True # Trigger weather update on rerun
+        new_city = st.text_input(" ", st.session_state["weather_city"], label_visibility="collapsed")
+        if new_city != st.session_state["weather_city"]:
+            st.session_state["weather_city"] = new_city
+            st.session_state["weather_data"] = get_weather(st.session_state["weather_city"])
             st.rerun()
-
-    # Weather data update logic (handled here to persist state on rerun)
-    if st.session_state.get("weather_settings_update", True):
-        st.session_state["weather_data"] = get_weather(USER_SETTINGS.get("weather_city", "Prayagraj"))
-    st.session_state["weather_settings_update"] = False
 
     weather_data = st.session_state.get("weather_data")
     hint_text = spend_mood_hint(weather_data)
-    # Applied dark theme styling to the hint box
     st.markdown(
         f"""
-    <div style="background-color: {DARK_CARD_BG}; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid {ACCENT_PURPLE}; color: #ffffff; box-shadow: 0 0 10px {ACCENT_PURPLE}40;">
-    	<span style="font-weight: bold; color: {ACCENT_CYAN};">🌤️ Spending Mood Hint:</span> {hint_text}
+    <div style="background-color: #f0f2f6; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid #6a5acd; color: #1e1e1e;">
+    	<span style="font-weight: bold; color: #6a5acd;">🌤️ Spending Mood Hint:</span> {hint_text}
     </div>
     """,
         unsafe_allow_html=True,
@@ -2722,7 +2823,7 @@ with tab_dashboard:
     f1, f2, f3 = st.columns([1.3, 1.6, 1.1])
     
     # Initialize start and end with safe defaults to prevent NameError
-    start: date = date.today() - timedelta(days=365) 
+    start: date = date.today() - timedelta(days=365)  
     end: date = date.today()
     sel_cats: List[str] = []
     sel_types: List[str] = []
@@ -2784,7 +2885,7 @@ with tab_dashboard:
     else:
         # Fallback to 1 day if the date is invalid or uninitialized
         days_to_go = 1
-        
+
 
     remaining_target = max(0, st.session_state["goal_target"] - st.session_state["goal_current"])
     required_daily_saving = remaining_target / days_to_go
@@ -2809,20 +2910,10 @@ with tab_dashboard:
             full_range = pd.date_range(start=date.today(), end=st.session_state["goal_date"], freq='D')
             target_df = pd.DataFrame(index=full_range)
             
-            # 1. Scalar calculations
-            total_remaining_target = st.session_state["goal_target"] - st.session_state["goal_current"]
-
-            # 2. Get the time difference Series (Series of Timedeltas)
-            time_diff_series = pd.Series(target_df.index.date - date.today())
-            
-            # 3. Use .dt.days to get a Series of integer days (This fixes the Attribute Error)
-            days_since_start = time_diff_series.dt.days
-
-            # 4. Calculate required cumulative progress using Series math (REPLACED LINES 2687-2689)
-            target_df['Required_Cumulative'] = st.session_state["goal_current"] + (
-                total_remaining_target * (days_since_start / days_to_go)
-            )
-            
+            # Calculate linear required progress
+            target_df['Required_Cumulative'] = st.session_state["goal_current"] + (st.session_state["goal_target"] - st.session_state["goal_current"]) * (
+                (target_df.index.date - date.today()) / (st.session_state["goal_date"] - date.today())
+            ).days
             target_df.iloc[-1, target_df.columns.get_loc('Required_Cumulative')] = st.session_state["goal_target"] # Ensure target date hits the amount
 
             # Merge for plotting
@@ -2838,7 +2929,7 @@ with tab_dashboard:
                 y=plot_data['Cumulative_Saving'], 
                 mode='lines', 
                 name='Actual Progress',
-                line=dict(color=ACCENT_CYAN, width=3) # Use Accent Cyan
+                line=dict(color='#6a5acd', width=3)
             ))
 
             # Add required cumulative savings (Required Path)
@@ -2847,7 +2938,7 @@ with tab_dashboard:
                 y=target_df['Required_Cumulative'], 
                 mode='lines', 
                 name='Required Path',
-                line=dict(color=ACCENT_PURPLE, dash='dot', width=2) # Use Accent Purple
+                line=dict(color='#8a2be2', dash='dot', width=2)
             ))
             
             # Add target marker
@@ -2855,18 +2946,14 @@ with tab_dashboard:
                 x=st.session_state["goal_date"], y=st.session_state["goal_target"],
                 text=f"🎯 Target: {money(st.session_state['goal_target'])}",
                 showarrow=True, arrowhead=1, ax=-50, ay=-30,
-                font=dict(color=ACCENT_PURPLE, size=14) # Use Accent Purple
+                font=dict(color="#8a2be2", size=14)
             )
 
-            # Force dark theme layout
             fig_goal.update_layout(
                 title=f"Savings Goal Progress: {money(remaining_target)} Remaining",
                 xaxis_title="Date",
                 yaxis_title="Cumulative Saved (₹)",
                 template="plotly_dark",
-                paper_bgcolor=DARK_CARD_BG,
-                plot_bgcolor=DARK_CARD_BG,
-                font_color="#ffffff",
                 height=450,
                 hovermode="x unified"
             )
@@ -2876,49 +2963,9 @@ with tab_dashboard:
 
     # --- Health Score + Budgets ---
     st.markdown("---")
-    
-    # ----------------------------------------------------------------------------------
-    # 💥 NEW LAYOUT IMPLEMENTATION: Horizontal Scrolling Metrics (REPLACES 3-COLUMN METRICS)
-    # ----------------------------------------------------------------------------------
-    st.header("Quick Financial Overview")
-    
-    total_income = view[view["type"] == "income"]["amount"].sum() if not view.empty else 0
-    total_expense = view[view["type"] == "expense"]["amount"].sum() if not view.empty else 0
-    net = total_income - total_expense
-    avg_per = tmp.groupby("period")["amount"].sum().mean() if not tmp.empty else 0
-    
-    metric_data = [
-        ("Total Income", money(total_income), ACCENT_CYAN),
-        ("Total Expense", money(total_expense), "#ef4444"),
-        ("Net Savings", money(net), "#22c55e"),
-        (f"Avg {group_period}", money(avg_per), ACCENT_PURPLE),
-    ]
+    top_left_col, top_mid_col, top_right_col = st.columns([1.2, 1.5, 2])
 
-    # Start the custom horizontal scrolling container
-    st.markdown('<div class="scroll-container">', unsafe_allow_html=True)
-
-    # Render each metric as a custom card inside the scroll container
-    for label, value, color in metric_data:
-        # Use an f-string to embed the metric data and custom color styling
-        st.markdown(
-            f"""
-            <div class="scroll-item-custom" style="border-left: 5px solid {color};">
-                <p style="color:#aaa; margin:0; font-size: 14px;">{label}</p>
-                <h3 style="color:{color}; margin-top:5px; margin-bottom:0; text-shadow: 0 0 5px {color}60;">{value}</h3>
-                <p style="color:#666; margin-top:10px; font-size:12px;">Data from {start} to {end}</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    # End the custom horizontal scrolling container
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # --- Health Score and Budget Mini-Cards ---
-    st.markdown("---")
-    top_mid_col, top_right_col = st.columns([1.5, 2]) # Re-use the right 2/3rds space
-
-    with top_mid_col:
+    with top_left_col:
         current_budgets = st.session_state["global_budgets"].get(CURRENT_USER_ID, {})
         budget_allocation = auto_allocate_budget(df_local, savings_target_pct=0.15)
         updated_budget, apply_save = budget_bot_minicard(budget_allocation)
@@ -2931,10 +2978,26 @@ with tab_dashboard:
         curr_ns, longest_ns = no_spend_streak(df_local)
         display_badges(curr_ns)
 
+    with top_mid_col:
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        m1, m2, m3, m4 = st.columns(4)
+        total_income = view[view["type"] == "income"]["amount"].sum() if not view.empty else 0
+        total_expense = view[view["type"] == "expense"]["amount"].sum() if not view.empty else 0
+        net = total_income - total_expense
+        if not tmp.empty:
+            avg_per = tmp.groupby("period")["amount"].sum().mean()
+        else:
+            avg_per = 0
+        m1.metric("Total Income", money(total_income))
+        m2.metric("Total Expense", money(total_expense))
+        m3.metric("Net", money(net))
+        m4.metric(f"Avg {group_period}", money(avg_per))
+        st.markdown("</div>", unsafe_allow_html=True)
+
     with top_right_col:
         health_score_data = compute_fin_health_score(df_local, budgets=current_budgets)
+        display_health_score(health_score_data)
         st.session_state["health_score_data"] = health_score_data
-        display_health_score(health_score_data) # Ensure display uses the saved data
 
         # === NEW: Budget overrun alerts (current month) ===
         try:
@@ -2955,7 +3018,6 @@ with tab_dashboard:
                         st.write(f"• **{cat}** over by **{money(spent - limit)}** (Spent {money(spent)} / Budget {money(limit)})")
         except Exception:
             pass
-    # ----------------------------------------------------------------------------------
 
     # --- Saving Streak ---
     st.markdown("---")
@@ -3003,8 +3065,8 @@ with tab_dashboard:
             st.markdown(
                 f"""
                 <div class="piggy-wrap">
-                    <div class="{pig_class}">🐷</div>
-                    {coins_html}
+                  <div class="{pig_class}">🐷</div>
+                  {coins_html}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -3018,7 +3080,7 @@ with tab_dashboard:
 
         with s2:
             st.markdown("Current Streak (Local)")
-            st.markdown(f"<div classt='streak-metric'>{local_curr_streak} days</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='streak-metric'>{local_curr_streak} days</div>", unsafe_allow_html=True)
 
         with s3:
             st.markdown("Longest Streak (Local)")
@@ -3032,20 +3094,11 @@ with tab_dashboard:
             x="day",
             y="net_saving",
             color="hit",
-            color_discrete_map={"Hit": ACCENT_CYAN, "Miss": "#ef4444"}, # Use Accent Cyan
+            color_discrete_map={"Hit": "#6a5acd", "Miss": "#ef4444"},
             title=f"Net saving (last {lookback} days)",
             labels={"day": "Day", "net_saving": "₹"},
         )
-        # Force dark theme layout
-        fig_streak.update_layout(
-            height=260, 
-            showlegend=True, 
-            legend_title="", 
-            template="plotly_dark",
-            paper_bgcolor=DARK_CARD_BG,
-            plot_bgcolor=DARK_CARD_BG,
-            font_color="#ffffff"
-        )
+        fig_streak.update_layout(height=260, showlegend=True, legend_title="", template="plotly_dark")
         st.plotly_chart(fig_streak, use_container_width=True, config={"displayModeBar": False}, key="streak_chart_1")
     else:
         st.info("No transactions in the current date range to compute a streak.")
@@ -3139,19 +3192,18 @@ with tab_dashboard:
 
         bucket_total = DB.piggy_balance(CURRENT_USER_ID, "collection")
         st.markdown(
-            f"*Bucket total (Income):* <span style='font-weight:700; color:{ACCENT_CYAN}'>{money(bucket_total)}</span>", # Neon color
+            f"*Bucket total (Income):* <span style='font-weight:700'>{money(bucket_total)}</span>",
             unsafe_allow_html=True,
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
     with right_col:
         st.subheader("💡 Personal Virtual Financial Advisor (VFA)")
-        # Applied dark theme styling to the VFA box
         st.markdown(
-            f"""
-            <div class="callout-box-vfa" style="background: {DARK_CARD_BG}; border-left: 5px solid {ACCENT_PURPLE}; box-shadow: 0 0 10px {ACCENT_PURPLE}40; padding:15px; border-radius:10px; margin-bottom:15px;">
-                <span class="animated-arrow-vfa" style="color:{ACCENT_CYAN};">➡️</span>
-                <span style="color:#ffffff;">Your VFA has new insights!</span>
+            """
+            <div class="callout-box-vfa">
+                <span class="animated-arrow-vfa">➡️</span>
+                <span>Your VFA has new insights!</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -3219,12 +3271,11 @@ with tab_dashboard:
                 except Exception as e:
                     st.session_state[tip_key] = f"❌ **AI Tip Generation Error:** {e}"
 
-            # Applied dark theme styling to the bot tip box
             st.markdown(
                 f"""
-                <div class='bot' style='border-left: 5px solid {ACCENT_CYAN}; background: {DARK_CARD_BG}; padding:15px; border-radius:10px; margin-bottom:15px; box-shadow: 0 0 10px {ACCENT_CYAN}40;'>
-                    <span style='font-weight: bold; color:{ACCENT_CYAN};'>Your personalized insights:</span>
-                    <p style='color:#ffffff; margin-top:5px;'>{st.session_state[tip_key]}</p>
+                <div class='bot' style='border-left: 5px solid #8a2be2;'>
+                    <span style='font-weight: bold;'>Your personalized insights:</span>
+                    {st.session_state[tip_key]}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -3267,11 +3318,7 @@ with tab_dashboard:
             if speaker == "You":
                 st.markdown(f"*You:* {msg}")
             else:
-                # Applied dark theme styling to chat bubble
-                st.markdown(
-                    f"<div class='chat-bubble ai' style='background:{DARK_CARD_BG}; border: 1px solid {ACCENT_PURPLE}40; padding:10px; border-radius:10px; margin:5px 0; color:#ffffff;'>{msg}</div>", 
-                    unsafe_allow_html=True
-                ) 
+                st.markdown(f"<div class='bot'>{msg}</div>", unsafe_allow_html=True)
 
         # --- Smart Machine (Voice Coach) — Bilingual ---
         st.markdown("---")
@@ -3289,7 +3336,9 @@ with tab_dashboard:
         if st.button("🔊 Speak now", key="speak_bilingual_now"):
             speak_bilingual_js(advice_hi, advice_en, order=order)
 
-        # Removed smart_machine_listener logic to avoid erroring due to mic permissions in hosted envs
+        if enable_listener:
+            smart_machine_listener(advice_hi, advice_en, wake_word="smart machine", order=order)
+            st.info("Listening… say **smart machine**. Allow mic permission; keep this tab focused.")
 
         # ---------- Main charts & table ----------
         st.markdown("---")
@@ -3339,20 +3388,19 @@ with tab_dashboard:
                 title=f"Income Allocation (Net Savings) {title_suffix}",
                 hole=0.65,
                 color='Rate',
-                color_discrete_map={'Savings Rate': ACCENT_CYAN, 'Expense Rate': '#e0e0e0'} # Use Accent Cyan
+                color_discrete_map={'Savings Rate': '#22c55e', 'Expense Rate': '#e0e0e0'}
             )
             
             fig_donut.update_traces(
                 textinfo='percent',  
                 hoverinfo='label+percent+value',
-                marker=dict(line=dict(color=DARK_CARD_BG, width=2))
+                marker=dict(line=dict(color='#ffffff', width=2))
             )
-            # Force dark theme layout
+            # Use contrasting background/paper colors for visibility
             fig_donut.update_layout(
-                template="plotly_dark",  
-                paper_bgcolor=DARK_CARD_BG,  
-                plot_bgcolor=DARK_CARD_BG,  
-                font_color="#ffffff",
+                template="plotly_white",  
+                paper_bgcolor='#ffffff',  
+                plot_bgcolor='#ffffff',  
                 height=380,  
                 showlegend=True,  
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2),
@@ -3390,7 +3438,7 @@ with tab_dashboard:
                     x=monthly_net.index, y=monthly_net['income'], 
                     mode='lines', name='Income', 
                     fill='tozeroy', fillcolor='rgba(34, 197, 94, 0.5)', # Green
-                    line=dict(color=ACCENT_CYAN, width=2), # Use Accent Cyan
+                    line=dict(color='#22c55e', width=2),
                     stackgroup='one'
                 ))
 
@@ -3403,15 +3451,13 @@ with tab_dashboard:
                     stackgroup='one'
                 ))
 
-                # Force dark theme layout
                 fig_cashflow.update_layout(
                     title='Income vs. Expenses Over Time',
                     xaxis_title="Month",
                     yaxis_title="Amount (₹)",
-                    template="plotly_dark", # Force dark theme
-                    paper_bgcolor=DARK_CARD_BG, 
-                    plot_bgcolor=DARK_CARD_BG, 
-                    font_color="#ffffff",
+                    template="plotly_white", # Use plotly_white for light background
+                    paper_bgcolor='#ffffff', 
+                    plot_bgcolor='#ffffff', 
                     height=380,
                     legend=dict(orientation="h", yanchor="top", y=1.1, xanchor="left", x=0),
                     margin=dict(l=0,r=0,t=40,b=0)
@@ -3453,12 +3499,10 @@ with tab_dashboard:
                 title='Risk (Volatility) vs. Expected Return (%)'
             )
             
-            # Force dark theme layout
             fig_risk_return.update_layout(
-                template="plotly_dark",
-                paper_bgcolor=DARK_CARD_BG, 
-                plot_bgcolor=DARK_CARD_BG, 
-                font_color="#ffffff",
+                template="plotly_white",
+                paper_bgcolor='#ffffff', 
+                plot_bgcolor='#ffffff', 
                 height=380,
                 xaxis=dict(range=[0, 10], dtick=2),
                 yaxis=dict(range=[0, 20], dtick=4),
@@ -3490,7 +3534,7 @@ with tab_dashboard:
             simulated_values = [
                 np.random.randint(20000, 150000), 
                 np.random.randint(10000, 35000),  
-                np.random.randint(5000, 50000),   
+                np.random.randint(5000, 50000),    
                 np.random.randint(50000, 180000), 
                 np.random.randint(30000, 100000), 
             ]
@@ -3509,13 +3553,12 @@ with tab_dashboard:
                 theta=tax_df['Section'].tolist() + [tax_df['Section'].tolist()[0]],
                 fill='toself',
                 name='Savings Contribution',
-                marker_color=ACCENT_PURPLE, # Use Accent Purple
-                line_color=ACCENT_PURPLE,
+                marker_color='rgba(138, 43, 226, 0.7)',
+                line_color='rgba(138, 43, 226, 1)',
                 hoverinfo='text',
                 text=[f'{s}: {money(v)}' for s, v in zip(tax_sections, simulated_values)]
             ))
 
-            # Force dark theme layout
             fig_tax.update_layout(
                 polar=dict(
                     radialaxis=dict(
@@ -3532,10 +3575,9 @@ with tab_dashboard:
                     )
                 ),
                 showlegend=False,
-                template="plotly_dark",
-                paper_bgcolor=DARK_CARD_BG, 
-                plot_bgcolor=DARK_CARD_BG,
-                font_color="#ffffff",
+                template="plotly_white",
+                paper_bgcolor='#ffffff', 
+                plot_bgcolor='#ffffff',
                 height=380,
                 title="Tax Savings Breakdown (Simulated)",
                 margin=dict(l=0,r=0,t=40,b=0)
@@ -3574,22 +3616,17 @@ with tab_dashboard:
                     data=[go.Bar(
                         x=summary_df["Metric"],
                         y=summary_df["Value"],
-                        marker_color=[ACCENT_PURPLE, "#ef4444", ACCENT_CYAN] # Use Accents
+                        marker_color=["#6a5acd", "#ef4444", "#22c55e"]
                     )]
                 )
-                # Force dark theme layout
                 fig_report.update_layout(
                     title=f"KPIs for {CURRENT_USER_ID}",
                     template="plotly_dark",
-                    paper_bgcolor=DARK_CARD_BG,
-                    plot_bgcolor=DARK_CARD_BG,
-                    font_color="#ffffff",
                     height=300
                 )
 
                 try:
-                    # FIX: Use the io buffer to get the image
-                    img_bytes = fig_report.to_image(format="png") 
+                    img_bytes = fig_report.to_image(format="png")
                 except ValueError:
                     st.error("❌ Plotly to Image failed. You may need to install `kaleido` (`pip install kaleido`).")
                     st.stop()
@@ -3656,9 +3693,9 @@ with tab_stock:
         if daily_df is not None and 'SMA_Short' in daily_df.columns:
             st.markdown("#### Moving Average Crossover (10-day vs 30-day SMA)")
             fig_sma = go.Figure()
-            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['Close Price (₹)'], mode='lines', name='Close Price', line=dict(color='#cccccc', width=1.5)))
-            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['SMA_Short'], mode='lines', name='10-Day SMA', line=dict(color=ACCENT_CYAN, width=2))) # Use Accent
-            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['SMA_Long'], mode='lines', name='30-Day SMA', line=dict(color=ACCENT_PURPLE, width=2))) # Use Accent
+            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['Close Price (₹)'], mode='lines', name='Close Price', line=dict(color='#6a5acd', width=1.5)))
+            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['SMA_Short'], mode='lines', name='10-Day SMA', line=dict(color='#ef4444', width=2)))
+            fig_sma.add_trace(go.Scatter(x=daily_df.index, y=daily_df['SMA_Long'], mode='lines', name='30-Day SMA', line=dict(color='#22c55e', width=2)))
             
             # Highlight Buy/Sell signals (Simplified)
             # Find crossover points (buy when short crosses above long, sell when short crosses below long)
@@ -3672,7 +3709,7 @@ with tab_stock:
                 x=buy_signals.index,
                 y=buy_signals['SMA_Short'],
                 mode='markers',
-                marker=dict(symbol='triangle-up', size=10, color=ACCENT_CYAN), # Use Accent
+                marker=dict(symbol='triangle-up', size=10, color='#22c55e'),
                 name='Buy Signal'
             ))
             fig_sma.add_trace(go.Scatter(
@@ -3683,15 +3720,7 @@ with tab_stock:
                 name='Sell Signal'
             ))
 
-            # Force dark theme layout
-            fig_sma.update_layout(
-                title=f"SMA Crossover for {symbol}", 
-                template="plotly_dark", 
-                paper_bgcolor=DARK_CARD_BG,
-                plot_bgcolor=DARK_CARD_BG,
-                font_color="#ffffff",
-                height=450
-            )
+            fig_sma.update_layout(title=f"SMA Crossover for {symbol}", template="plotly_dark", height=450)
             st.plotly_chart(fig_sma, use_container_width=True)
             st.caption("Simplified technical analysis: Buy signal (green up triangle) when the fast SMA (pink/red) crosses above the slow SMA (green).")
 
@@ -3707,16 +3736,8 @@ with tab_stock:
                     y="Close Price (₹)",
                     title=f"Price Trend for {symbol}",
                     labels={"Close Price (₹)": "Price (₹)", "Date": "Date"},
-                    color_discrete_sequence=['#cccccc'],
                 )
-                # Force dark theme layout
-                fig_line.update_layout(
-                    template="plotly_dark", 
-                    paper_bgcolor=DARK_CARD_BG,
-                    plot_bgcolor=DARK_CARD_BG,
-                    font_color="#ffffff",
-                    height=400
-                )
+                fig_line.update_layout(template="plotly_dark", height=400)
                 st.plotly_chart(fig_line, use_container_width=True)
             else:
                 st.info("Historical data not available.")
@@ -3738,15 +3759,7 @@ with tab_stock:
                 color_discrete_sequence=px.colors.sequential.RdPu,
             )
             fig_donut.update_traces(textinfo="percent+label")
-            # Force dark theme layout
-            fig_donut.update_layout(
-                template="plotly_dark", 
-                paper_bgcolor=DARK_CARD_BG,
-                plot_bgcolor=DARK_CARD_BG,
-                font_color="#ffffff",
-                height=400, 
-                showlegend=False
-            )
+            fig_donut.update_layout(template="plotly_dark", height=400, showlegend=False)
             st.plotly_chart(fig_donut, use_container_width=True)
 
         st.markdown("---")
@@ -3758,137 +3771,53 @@ with tab_stock:
                 y="Volume",
                 title=f"Daily Volume for {symbol}",
                 labels={"Volume": "Volume", "Date": "Date"},
-                color_discrete_sequence=[ACCENT_PURPLE] # Use Accent
+                color_discrete_sequence=['#8a2be2']
             )
-            # Force dark theme layout
-            fig_bar.update_layout(
-                template="plotly_dark", 
-                paper_bgcolor=DARK_CARD_BG,
-                plot_bgcolor=DARK_CARD_BG,
-                font_color="#ffffff",
-                height=400
-            )
+            fig_bar.update_layout(template="plotly_dark", height=400)
             st.plotly_chart(fig_bar, use_container_width=True)
-        else:
-            st.info("Enter a stock symbol and click 'Fetch Quote & Charts'.")
+    else:
+        st.info("Enter a stock symbol and click 'Fetch Quote & Charts'.")
 
-# --- Financial Planning Tab ---
-with tab_plan:
-    _ai_financial_plan_view(df)
-
-# >>> NEW TAB RENDER - PERSONAL CA BLUEPRINT <<<
-with tab_ca_plan:
-    render_ca_plan_tab(df)
-
-# --- City Affordability Tab ---
-with tab_city:
-    render_city_affordability_tab()
-
-# === Tools tab (Renamed to Settings & Tools) ===
+# === Tools tab ===
 with tab_tools:
-    st.header("⚙️ User Settings & Data Tools")
-    st.markdown("---")
-    
-    col_set_1, col_set_2 = st.columns(2)
+    st.header("🧰 Data Tools — Edit / Backup / Dedupe / Categories")
 
-    with col_set_1:
-        st.subheader("🎨 App Customization (Persistence Layer)")
-        
-        # 1. Theme Color Picker
-        new_theme_color = st.color_picker(
-            "1. Choose Main Theme Color (Navbar, Highlights)",
-            value=USER_SETTINGS["theme_color"],
-            key="theme_color_picker"
-        )
-        
-        # 2. Update Promise
-        new_promise = st.text_input(
-            "2. Change Personal Promise Line",
-            value=USER_SETTINGS["promise"],
-            key="promise_input"
-        )
-        
-        # 3. Background Image Uploader (Simplified, stores base64/URL if supported)
-        st.caption("3. Background Image (Currently using default dark background)")
-        uploaded_animation = st.file_uploader(
-            "Upload Background Image/Animation (GIF, MP4)", 
-            type=["gif", "mp4", "jpg", "png"],
-            key="animation_upload"
-        )
-        
-        if uploaded_animation:
-            # Placeholder for saving the file and setting the background URL/path
-            st.info(f"Animation '{uploaded_animation.name}' uploaded. Click 'Save Settings' to apply the persistence change.")
-            # In a full solution, you would save this file and store its path/URL in USER_SETTINGS.
-            # For simplicity, we just save the status.
-            st.session_state["user_settings"][CURRENT_USER_ID]["bg_image"] = "uploaded"
-        
-        # 4. Wake Word Settings (Placeholder, needs browser API)
-        st.markdown("#### Voice Command Settings")
-        
-        # Logout on Wake Word logic
-        st.info("The 'Bye buddy' logout wake word is implemented via JavaScript; ensure the 'Speak now' button works, but browser limitations may prevent true background listening in Streamlit Cloud.")
-        
-        if st.button("💾 Save Settings", use_container_width=True, key="save_settings_btn"):
-            # Update session state settings
-            st.session_state["user_settings"][CURRENT_USER_ID]["theme_color"] = new_theme_color
-            st.session_state["user_settings"][CURRENT_USER_ID]["promise"] = new_promise
-            
-            # In a real app, save USER_SETTINGS to your database/json file here.
-            
-            st.success("✅ Settings saved! Rerunning app to apply style changes...")
+    # --- quick actions ---
+    cA, cB, cC, cD, cE = st.columns(5)
+    with cA:
+        if st.button("💾 Export MiniDB (JSON)", use_container_width=True):
+            try:
+                data = json.dumps(DB.to_json(), ensure_ascii=False, indent=2).encode("utf-8")
+                st.download_button("Download mini_db.json", data=data, file_name="mini_db.json", mime="application/json", use_container_width=True)
+            except Exception as e:
+                st.error(f"Export failed: {e}")
+    with cB:
+        up = st.file_uploader("Restore MiniDB (.json)", type=["json"])
+        if up is not None:
+            try:
+                payload = json.loads(up.read().decode("utf-8"))
+                newdb = MiniDB.from_json(payload)
+                st.session_state["DB"]._orders = newdb._orders
+                st.session_state["DB"]._tx = newdb._tx
+                st.session_state["DB"]._order_seq = newdb._order_seq
+                st.session_state["DB"]._tx_seq = newdb._tx_seq
+                st.session_state["DB"].save()
+                st.success("✅ DB restored from backup.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Restore failed: {e}")
+    with cC:
+        if st.button("🧹 Remove Duplicates", use_container_width=True):
+            removed = DB.delete_duplicates_keep_smallest_id(CURRENT_USER_ID)
+            DB.save()
+            st.success(f"Duplicates removed: {removed}")
             st.rerun()
+    with cD:
+        # --- NEW FEATURE: Delete All Transactions Button ---
+        if st.button("💣 Delete All User Txns", use_container_width=True, help="WARNING: Deletes ALL transactions for the current user. Cannot be undone."):
+            st.session_state["confirm_delete_all"] = True
+            st.rerun() # Rerun to show confirmation step
 
-
-    with col_set_2:
-        st.subheader("🧰 Data Management Tools")
-        
-        st.markdown("---")
-        st.markdown("#### 💾 Database Operations (MiniDB)")
-        
-        cA, cB = st.columns(2)
-        with cA:
-            if st.button("💾 Export MiniDB (JSON)", use_container_width=True):
-                try:
-                    data = json.dumps(DB.to_json(), ensure_ascii=False, indent=2).encode("utf-8")
-                    st.download_button("Download mini_db.json", data=data, file_name="mini_db.json", mime="application/json", use_container_width=True)
-                except Exception as e:
-                    st.error(f"Export failed: {e}")
-        with cB:
-            up = st.file_uploader("Restore MiniDB (.json)", type=["json"])
-            if up is not None:
-                try:
-                    payload = json.loads(up.read().decode("utf-8"))
-                    newdb = MiniDB.from_json(payload)
-                    st.session_state["DB"]._orders = newdb._orders
-                    st.session_state["DB"]._tx = newdb._tx
-                    st.session_state["DB"]._order_seq = newdb._order_seq
-                    st.session_state["DB"]._tx_seq = newdb._tx_seq
-                    st.session_state["DB"].save()
-                    st.success("✅ DB restored from backup. Rerunning.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Restore failed: {e}")
-        
-        st.markdown("---")
-        st.markdown("#### 🧹 Data Cleanup & User Logout")
-        
-        cC, cD = st.columns(2)
-        with cC:
-            if st.button("🧹 Remove Duplicates", use_container_width=True):
-                removed = DB.delete_duplicates_keep_smallest_id(CURRENT_USER_ID)
-                DB.save()
-                st.success(f"Duplicates removed: {removed}")
-                st.rerun()
-        
-        with cD:
-            if st.button("🚪 Logout User", use_container_width=True, key="logout_tools_btn"):
-                # Clear critical session state vars to enforce login
-                for k in ("auth_ok", "auth_user", "chat_history"):
-                    st.session_state.pop(k, None)
-                st.rerun()
-                
-        # --- Delete All Transactions (Safety Check) ---
         if st.session_state.get("confirm_delete_all", False):
             st.warning("⚠️ **ARE YOU SURE?** This action is permanent and deletes **ALL** your transactions.")
             if st.button(f"CONFIRM Delete All Txns for {CURRENT_USER_ID}", type="primary"):
@@ -3900,9 +3829,111 @@ with tab_tools:
             if st.button("Cancel Delete"):
                 st.session_state["confirm_delete_all"] = False
                 st.rerun()
-        elif st.button("💣 Delete All User Txns", use_container_width=True, help="WARNING: Deletes ALL transactions for the current user. Cannot be undone."):
-            st.session_state["confirm_delete_all"] = True
-            st.rerun() # Rerun to show confirmation step
+        # -----------------------------------------------------
+    with cE:
+        st.info("Tip: Use **E** to jump here, **B** to export DB, **F** to focus chat.")
+
+    st.markdown("---")
+
+    # --- Inline edit/delete table ---
+    st.subheader("✏️ Edit or Delete Transactions")
+    if df.empty:
+        st.info("No transactions to edit.")
+    else:
+        # Ensure 'view' is defined and used if available, otherwise fall back to 'df'
+        edit_df_source = locals().get('view')
+        edit_df = edit_df_source.copy() if edit_df_source is not None and not edit_df_source.empty else df.copy()
+        
+        edit_df = edit_df.sort_values(["date"], ascending=False).reset_index(drop=True)
+        if "id" not in edit_df.columns:
+            st.warning("Editing requires saved DB rows (the sample data is not persisted).")
+        else:
+            show_cols = ["id","date","amount","category","description","type"]
+            edit_df_show = edit_df[show_cols].copy()
+            edited = st.data_editor(
+                edit_df_show,
+                key="data_editor_txn",
+                use_container_width=True,
+                num_rows="fixed",
+                column_config={
+                    "id": st.column_config.NumberColumn(disabled=True, help="Database ID"),
+                    "date": st.column_config.DateColumn(),
+                    "amount": st.column_config.NumberColumn(format="₹%d"),
+                    "category": st.column_config.TextColumn(),
+                    "description": st.column_config.TextColumn(),
+                    "type": st.column_config.SelectboxColumn(options=["income","expense"])
+                }
+            )
+            c1, c2 = st.columns([1,1])
+            with c1:
+                if st.button("💡 Apply Edited Rows", use_container_width=True):
+                    changed = 0
+                    for _, row in edited.iterrows():
+                        try:
+                            ok = DB.update_txn(
+                                int(row["id"]),
+                                date=row["date"],
+                                amount=row["amount"],
+                                category=str(row["category"]).strip() or "uncategorized",
+                                description=str(row["description"]),
+                                type=row["type"]
+                            )
+                            if ok: changed += 1
+                        except Exception:
+                            pass
+                    DB.save()
+                    st.success(f"Saved {changed} rows.")
+                    st.rerun()
+            with c2:
+                tid = st.number_input("Delete by ID", min_value=1, step=1, value=1, key="del_tid")
+                if st.button("🗑️ Delete", use_container_width=True):
+                    if DB.delete_txn(int(tid)):
+                        DB.save()
+                        st.success(f"Deleted txn #{int(tid)}")
+                        st.rerun()
+                    else:
+                        st.error("ID not found.")
+
+    st.markdown("---")
+
+    # --- Category Manager ---
+    st.subheader("🗂️ Category Manager (Rename/Merge)")
+    cats_all = sorted(set([t.category for t in DB._tx.values() if t.user_id == CURRENT_USER_ID]))
+    if not cats_all:
+        st.info("No categories yet.")
+    else:
+        col1, col2, col3 = st.columns([1.2,1.2,1])
+        with col1:
+            old_cat = st.selectbox("From (old)", options=cats_all)
+        with col2:
+            new_cat = st.text_input("To (new)", value=old_cat)
+        with col3:
+            if st.button("🔁 Rename/Merge", use_container_width=True):
+                if not new_cat.strip():
+                    st.error("New category cannot be empty.")
+                else:
+                    changed = DB.rename_or_merge_category(CURRENT_USER_ID, old_cat, new_cat.strip().lower())
+                    DB.save()
+                    st.success(f"Updated {changed} rows from '{old_cat}' → '{new_cat}'.")
+                    st.rerun()
+
+    st.markdown("---")
+
+    # --- Duplicate inspector ---
+    st.subheader("🔍 Duplicate Inspector")
+    groups = DB.find_duplicates(CURRENT_USER_ID)
+    if not groups:
+        st.success("No duplicates found. 🎉")
+    else:
+        st.warning(f"Found {len(groups)} duplicate groups. Showing first few:")
+        show = []
+        for ids in groups[:5]:
+            show.extend([asdict(DB._tx[i]) for i in ids if i in DB._tx])
+        if show:
+            dup_df = pd.DataFrame(show)
+            if not dup_df.empty:
+                dup_df["date"] = pd.to_datetime(dup_df["date"]).dt.date
+            st.dataframe(dup_df, use_container_width=True)
 
 # --- MAIN APPLICATION ENTRY POINT ---
 if __name__ == "__main__":
