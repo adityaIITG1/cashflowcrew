@@ -992,7 +992,6 @@ def render_ca_plan_tab(df: pd.DataFrame):
             ],
             "savings_split": [
                 {"label": "SIP Target", "value": suggested_sip},
-                {"label": "SIP Contribution", "value": suggested_sip},
                 {"label": "Other Savings (EF, Buffer)", "value": max(0, ideal_savings_amount - suggested_sip)},
             ]
         }
@@ -1025,7 +1024,7 @@ def render_ca_plan_tab(df: pd.DataFrame):
                     if chart_type == "bar":
                         fig = px.bar(df_chart, x=x_key, y=y_key, color_discrete_sequence=['#6a5acd'])
                     elif chart_type == "pie":
-                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.3, color_discrete_sequence=px.colors.qualitative.Pastel)
+                        fig = px.pie(df_chart, names=x_key, values=y=y_key, hole=0.3, color_discrete_sequence=px.colors.qualitative.Pastel)
                     elif chart_type == "donut":
                         fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.6, color_discrete_sequence=px.colors.qualitative.Pastel)
                     elif chart_type == "line":
@@ -1558,7 +1557,7 @@ def gemini_query(prompt: str, history: list[tuple[str, str]], context: str) -> s
             "You must be able to answer finance questions, but also handle casual conversation, greetings, and nonsense questions gracefully. "
             "For finance queries, be concise (3-5 sentences) and proactive in suggesting ideas. "
             "For casual queries, respond like a friendly assistant. "
-            "If the user asks a casual question (like 'hi' or 'how are you' or a simple greeting), use a simple, friendly response (e.g., 'I am fine, how are you?')."
+            "If the user asks a casual question (like 'hi' or 'how are you' or a simple greeting'), use a simple, friendly response (e.g., 'I am fine, how are you?')."
             "Always include emojis in your responses to make them more engaging."
         )
         final_prompt = system_instruction + "\n\n" + prompt
@@ -2739,12 +2738,16 @@ with tab_dashboard:
             target_df = pd.DataFrame(index=full_range)
             
             # Calculate linear required progress
-            # FIX 2: Correctly extract the scalar total days difference first, then use vectorized subtraction and .days on the difference array
+            
+            # 1. Calculate the total scalar days difference for the denominator
             total_days_difference = st.session_state["goal_date"] - date.today()
-            if total_days_difference.days == 0:
-                 progress_ratio_days = 0 
+            
+            if total_days_difference.days <= 0:
+                 # Handle case where target date is today or in the past
+                 # Use a small epsilon to prevent division by zero or large negative numbers, though the condition above should cover it
+                 progress_ratio_days = (target_df.index.date - date.today()).days * 0 
             else:
-                 # Subtract the scalar date from the index of dates (TimedeltaIndex), then get the .days attribute of the TimedeltaIndex
+                 # 2. Calculate the vectorized time difference (TimedeltaIndex), extract its .days (NumPy array of integers), and divide by the scalar total days.
                  progress_ratio_days = (target_df.index.date - date.today()).days / total_days_difference.days
             
             target_df['Required_Cumulative'] = st.session_state["goal_current"] + (st.session_state["goal_target"] - st.session_state["goal_current"]) * progress_ratio_days
