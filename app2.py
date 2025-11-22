@@ -8,7 +8,7 @@ import requests
 import time
 import random
 import re
-import hashlib # Added for password hashing
+import hashlib
 from io import BytesIO
 from pathlib import Path
 from datetime import date, datetime, timedelta
@@ -135,7 +135,8 @@ CITY_PRESETS: Dict[str, Tuple[int, int, int, int, str]] = {
 # --- New function to fetch cities using Gemini (Dynamic or Fallback) ---
 @st.cache_data(ttl=timedelta(days=7))
 def get_cities_from_gemini() -> Dict[str, Tuple[int, int, int, int, str]]:
-    key = os.environ.get("GEMINI_API_KEY") or ""
+    # NOTE: Key updated per user request
+    key = os.environ.get("GEMINI_API_KEY") or "AIzaSyDr94wdSXzl99TteRBIjqyPIM3GWdPEhGI"
     if not (HAS_GEMINI_SDK and key.strip()):
         return CITY_PRESETS
 
@@ -303,7 +304,8 @@ def _get_tier_from_index(idx: int) -> str:
     return "Tier-3"
 
 def _gemini_aff_text(city: str, income: int, res: AffResult, lang: str = "en") -> str:
-    key = os.environ.get("GEMINI_API_KEY") or ""
+    # NOTE: Key updated per user request
+    key = os.environ.get("GEMINI_API_KEY") or "AIzaSyDr94wdSXzl99TteRBIjqyPIM3GWdPEhGI"
     def fallback() -> str:
         norm = _norm_city_name(city).lower()
         lines = []
@@ -1176,6 +1178,7 @@ class MiniDB:
         self._tx[t.id] = t
         return t
 
+    # FIX 1: Properly defined method within the class block (was lambda in old code)
     def list_txns(
         self,
         user_id: str,
@@ -1198,6 +1201,7 @@ class MiniDB:
             rows = [r for r in rows if r.type in ts]
         return sorted(rows, key=lambda r: (r.date, r.id))
 
+    # FIX 1: Properly defined method within the class block (was lambda in old code)
     def totals(self, user_id: str) -> dict:
         user_txns = self._filter_txns(user_id)
         inc = sum(t.amount for t in user_txns if t.type == "income")
@@ -1323,7 +1327,7 @@ class MiniDB:
 # ============================== API Keys and Configuration ==============================
 
 # FIX: USING LATEST VALID KEY AND ENSURING DEFINITIVE ASSIGNMENT.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyDEYIm09tc6EvmKwD3JwYIIQSfpAELjZ-Q"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyDr94wdSXzl99TteRBIjqyPIM3GWdPEhGI"
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or "8553931141:AAETBKCN1jCYub3Hf7BZ1ylS3izMB5EDzII"
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID") or "6242960424"
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY")
@@ -1354,12 +1358,12 @@ UPI_PAYMENT_STRING = f"upi://pay?pa={UPI_ID}&pn=PRAKRITI&cu=INR"
 # --- Personalized Information ---
 TEAM_INFO = {
     "Team Name": "Cashflow Crew",
-    "Team Leader": "Aditya Kumar Singh",
-    "Leader Expertise": "B.tech student at AKTU, expert in Generative AI.",
+    "Team Leader": "Prakriti Jaiswal",
+    "Leader Expertise": "B.Com student at Allahabad University, expert in commerce.",
     "Frontend": "Ujjwal Singh",
     "Guidance": "Akash Pandey Sir (Technosavvys)",
     "Contact": "9170397988",
-    "Email": "iitianadityakumarsingh@gmail.com",
+    "Email": "jaiswalprakriti26@gmail.com",
     "Donate UPI": UPI_ID,
 }
 
@@ -1537,6 +1541,7 @@ def openai_query(prompt: str, history: list[tuple[str, str]], context: str) -> s
 # --- ORIGINAL: gemini_query (MODIFIED) ---
 def gemini_query(prompt: str, history: list[tuple[str, str]], context: str) -> str:
     """Handles the intelligent response using the Gemini API, with OpenAI fallback."""
+    # NOTE: Key updated per user request
     if not GEMINI_API_KEY:
         if HAS_OPENAI_SDK and OPENAI_API_KEY:
             return openai_query(prompt, history, context)
@@ -2085,6 +2090,10 @@ def inject_cfc_brand_theme():
         font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
     /* Streamlit widgets adaptation for dark mode */
+    .stTextInput label {
+        color: #E2E8F0 !important;
+        font-weight: 500;
+    }
     .stTextInput input, .stTextInput textarea, .stSelectbox > div > button, .stNumberInput input {
         background-color: rgba(255, 255, 255, 0.1) !important;
         color: #E2E8F0 !important;
@@ -2209,8 +2218,8 @@ def login_page():
         with tab_login:
             all_users = auth_db.users()
             
-            # FIX: Use text input for username instead of selectbox
-            u_login = st.text_input("Username", key="u_login")
+            # FIX: Use text input for username
+            u_login = st.text_input("Username", key="u_login_input")
 
             if len(all_users) == 0:
                  st.info("No users found. Please use the **New User Signup** tab first.")
@@ -2228,7 +2237,7 @@ def login_page():
                         st.session_state["auth_user"] = u_select
                         st.session_state["remember_me"] = remember
                         st.success("🎉 Login Successful! Redirecting...")
-                        # REMOVED the redundant and error-causing check for VALID_USERS
+                        # FIX: Removed the reference to the nonexistent VALID_USERS
                         st.rerun()
                     else:
                         st.error("❌ Invalid Username or Password. Try again.")
@@ -2236,13 +2245,13 @@ def login_page():
         # -------- Signup --------
         with tab_signup:
             st.markdown("---")
-            st.markdown("##### **NOTE:** Your credentials will be saved locally. Password should be strong.")
+            st.markdown("##### **NOTE: Credentials will be saved locally. Password must be 6+ chars.**")
             st.markdown("---")
             new_user = st.text_input("Create Username", key="new_user")
             new_pw = st.text_input("Create Password", type="password", help="Enter a strong password (min 6 chars)", key="new_pw")
             new_pw2 = st.text_input("Confirm Password", type="password", key="new_pw2")
 
-            if st.button("Create Account", use_container_width=True):
+            if st.button("Create Account", use_container_width=True, key="create_account_btn"):
                 if not new_user or not new_pw:
                     st.error("All fields required.")
                 elif new_pw != new_pw2:
@@ -2263,10 +2272,6 @@ def login_page():
 
 
 # ===================== END: REPLACED LOGIN/AUTH SECTION =====================
-
-# **REMOVED** the old Biometric user list (VALID_USERS) as it's no longer used.
-# **REMOVED** the FaceDetectorTransformer class.
-# **REMOVED** the _login_view function.
 
 if "DB" not in st.session_state:
     st.session_state["DB"] = MiniDB.load()
@@ -2734,9 +2739,16 @@ with tab_dashboard:
             target_df = pd.DataFrame(index=full_range)
             
             # Calculate linear required progress
-            target_df['Required_Cumulative'] = st.session_state["goal_current"] + (st.session_state["goal_target"] - st.session_state["goal_current"]) * (
-                (target_df.index.date - date.today()) / (st.session_state["goal_date"] - date.today())
-            ).days
+            # FIX 2: Correctly extract the scalar total days difference first, then use vectorized subtraction and .days on the difference array
+            total_days_difference = st.session_state["goal_date"] - date.today()
+            if total_days_difference.days == 0:
+                 progress_ratio_days = 0 
+            else:
+                 # Subtract the scalar date from the index of dates (TimedeltaIndex), then get the .days attribute of the TimedeltaIndex
+                 progress_ratio_days = (target_df.index.date - date.today()).days / total_days_difference.days
+            
+            target_df['Required_Cumulative'] = st.session_state["goal_current"] + (st.session_state["goal_target"] - st.session_state["goal_current"]) * progress_ratio_days
+
             target_df.iloc[-1, target_df.columns.get_loc('Required_Cumulative')] = st.session_state["goal_target"] # Ensure target date hits the amount
 
             # Merge for plotting
@@ -3776,5 +3788,3 @@ if __name__ == "__main__":
         st.session_state["DB"].save()
     except Exception:
         pass
-
-
