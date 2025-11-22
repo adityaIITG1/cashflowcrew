@@ -1024,7 +1024,7 @@ def render_ca_plan_tab(df: pd.DataFrame):
                     if chart_type == "bar":
                         fig = px.bar(df_chart, x=x_key, y=y_key, color_discrete_sequence=['#6a5acd'])
                     elif chart_type == "pie":
-                        fig = px.pie(df_chart, names=x_key, values=y=y_key, hole=0.3, color_discrete_sequence=px.colors.qualitative.Pastel)
+                        fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.3, color_discrete_sequence=px.colors.qualitative.Pastel)
                     elif chart_type == "donut":
                         fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.6, color_discrete_sequence=px.colors.qualitative.Pastel)
                     elif chart_type == "line":
@@ -3791,3 +3791,4 @@ if __name__ == "__main__":
         st.session_state["DB"].save()
     except Exception:
         pass
+
