@@ -2208,16 +2208,18 @@ def login_page():
         # -------- Existing Login --------
         with tab_login:
             all_users = auth_db.users()
+            
+            # FIX: Use text input for username instead of selectbox
+            u_login = st.text_input("Username", key="u_login")
+
             if len(all_users) == 0:
-                st.info("No users yet. Please signup first.")
-                u_select = None
-            else:
-                u_select = st.selectbox("Select Username", all_users, key="user_select")
+                 st.info("No users found. Please use the **New User Signup** tab first.")
 
             pw_login = st.text_input("Password", type="password", key="pw_login")
             remember = st.checkbox("Remember me on this device")
 
             if st.button("Login", use_container_width=True):
+                u_select = u_login.strip()
                 if not u_select or not pw_login:
                     st.error("Username/Password required.")
                 else:
@@ -2226,34 +2228,32 @@ def login_page():
                         st.session_state["auth_user"] = u_select
                         st.session_state["remember_me"] = remember
                         st.success("🎉 Login Successful! Redirecting...")
-                        # Save the new user to the main transaction DB if they are new there
-                        if not u_select in VALID_USERS: # Use a quick check to see if they are a legacy user from original code
-                           pass # New users will be created with their first transaction
+                        # REMOVED the redundant and error-causing check for VALID_USERS
                         st.rerun()
                     else:
-                        st.error("❌ Wrong password. Try again.")
+                        st.error("❌ Invalid Username or Password. Try again.")
 
         # -------- Signup --------
         with tab_signup:
             st.markdown("---")
-            st.markdown("##### **NOTE:** Create a strong username and password.")
+            st.markdown("##### **NOTE:** Your credentials will be saved locally. Password should be strong.")
             st.markdown("---")
             new_user = st.text_input("Create Username", key="new_user")
-            new_pw = st.text_input("Create Password", type="password", key="new_pw")
+            new_pw = st.text_input("Create Password", type="password", help="Enter a strong password (min 6 chars)", key="new_pw")
             new_pw2 = st.text_input("Confirm Password", type="password", key="new_pw2")
 
             if st.button("Create Account", use_container_width=True):
                 if not new_user or not new_pw:
                     st.error("All fields required.")
                 elif new_pw != new_pw2:
-                    st.error("Passwords do not match.")
+                    st.error("❌ Passwords do not match.")
                 elif auth_db.has_user(new_user):
-                    st.error("Username already exists.")
+                    st.error("❌ Username already exists.")
                 elif len(new_pw) < 6:
-                    st.error("Password must be at least 6 characters.")
+                    st.error("❌ Password must be at least 6 characters.")
                 else:
                     auth_db.add_user(new_user, hash_password(new_pw))
-                    st.success("✅ Account created! Please switch to the 'Existing User Login' tab to log in.")
+                    st.success("✅ Account created! Please switch to the **Existing User Login** tab to log in.")
                     st.balloons()
 
         st.markdown("</div>", unsafe_allow_html=True)
