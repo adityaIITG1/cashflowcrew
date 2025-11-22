@@ -1323,7 +1323,7 @@ class MiniDB:
 # ============================== API Keys and Configuration ==============================
 
 # FIX: USING LATEST VALID KEY AND ENSURING DEFINITIVE ASSIGNMENT.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyDEYIm09tc6EvmKwD3JwYIIQSfpAELjZ-Q"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyA7yrDfNtiXbZijGLWbDKFxDG_kTs7veOA"
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or "8553931141:AAETBKCN1jCYub3Hf7BZ1ylS3izMB5EDzII"
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID") or "6242960424"
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY")
@@ -1354,12 +1354,12 @@ UPI_PAYMENT_STRING = f"upi://pay?pa={UPI_ID}&pn=PRAKRITI&cu=INR"
 # --- Personalized Information ---
 TEAM_INFO = {
     "Team Name": "Cashflow Crew",
-    "Team Leader": "Prakriti Jaiswal",
-    "Leader Expertise": "B.Com student at Allahabad University, expert in commerce.",
+    "Team Leader": "Aditya Kumar Singh",
+    "Leader Expertise": "B.tech student at AKTU, expert in Generative AI.",
     "Frontend": "Ujjwal Singh",
     "Guidance": "Akash Pandey Sir (Technosavvys)",
     "Contact": "9170397988",
-    "Email": "jaiswalprakriti26@gmail.com",
+    "Email": "iitianadityakumarsingh@gmail.com",
     "Donate UPI": UPI_ID,
 }
 
@@ -3776,3 +3776,4 @@ if __name__ == "__main__":
         st.session_state["DB"].save()
     except Exception:
         pass
+
