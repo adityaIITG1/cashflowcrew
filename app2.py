@@ -1024,8 +1024,10 @@ def render_ca_plan_tab(df: pd.DataFrame):
                     if chart_type == "bar":
                         fig = px.bar(df_chart, x=x_key, y=y_key, color_discrete_sequence=['#6a5acd'])
                     elif chart_type == "pie":
+                        # FIX: Corrected SyntaxError: invalid syntax (values=y=y_key -> values=y_key)
                         fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.3, color_discrete_sequence=px.colors.qualitative.Pastel)
                     elif chart_type == "donut":
+                        # FIX: Corrected SyntaxError: invalid syntax (values=y=y_key -> values=y_key)
                         fig = px.pie(df_chart, names=x_key, values=y_key, hole=0.6, color_discrete_sequence=px.colors.qualitative.Pastel)
                     elif chart_type == "line":
                         fig = px.line(df_chart, x="Date" if x_key == "month" else x_key, y=y_key, markers=True, color_discrete_sequence=['#22c55e'])
@@ -2744,11 +2746,14 @@ with tab_dashboard:
             
             if total_days_difference.days <= 0:
                  # Handle case where target date is today or in the past
-                 # Use a small epsilon to prevent division by zero or large negative numbers, though the condition above should cover it
-                 progress_ratio_days = (target_df.index.date - date.today()).days * 0 
+                 # Ensure result is a NumPy array of floats/ints for multiplication
+                 progress_ratio_days = np.zeros(len(target_df.index))
             else:
-                 # 2. Calculate the vectorized time difference (TimedeltaIndex), extract its .days (NumPy array of integers), and divide by the scalar total days.
-                 progress_ratio_days = (target_df.index.date - date.today()).days / total_days_difference.days
+                 # 2. Calculate the vectorized time difference (TimedeltaIndex), extract its .days (NumPy array of integers), 
+                 # and divide by the scalar total days.
+                 # FIX 2: Use .dt.days on the TimedeltaIndex resulting from the subtraction of pd.Series
+                 time_difference_days = (target_df.index.to_series() - pd.to_datetime(date.today())).dt.days
+                 progress_ratio_days = time_difference_days / total_days_difference.days
             
             target_df['Required_Cumulative'] = st.session_state["goal_current"] + (st.session_state["goal_target"] - st.session_state["goal_current"]) * progress_ratio_days
 
@@ -3791,4 +3796,3 @@ if __name__ == "__main__":
         st.session_state["DB"].save()
     except Exception:
         pass
-
