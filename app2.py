@@ -1328,7 +1328,7 @@ class MiniDB:
 # ============================== API Keys and Configuration ==============================
 
 # FIX: USING LATEST VALID KEY AND ENSURING DEFINITIVE ASSIGNMENT.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyCMcDYGqTQccWmo-qtnluUxC5riecd7Uz8"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyADdDVeAHh0TOhptEDZaO7otu972Q-Y4-0"
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or "8553931141:AAETBKCN1jCYub3Hf7BZ1ylS3izMB5EDzII"
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID") or "6242960424"
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY")
@@ -3796,5 +3796,6 @@ if __name__ == "__main__":
         st.session_state["DB"].save()
     except Exception:
         pass
+
 
 
